@@ -32,13 +32,36 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-# Database Schema Upgrade for Deposit Proof Column
+# Database Tables & Schema Upgrade Automatic Initialization
 with get_db() as conn:
+    conn.execute('''CREATE TABLE IF NOT EXISTS users (
+                        uid TEXT PRIMARY KEY,
+                        name TEXT,
+                        password TEXT,
+                        inv REAL DEFAULT 0.0,
+                        profit_wallet REAL DEFAULT 0.0,
+                        referrer TEXT,
+                        rank TEXT DEFAULT 'Tiffany',
+                        status TEXT DEFAULT 'Active')''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS deposits (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        uid TEXT,
+                        amount REAL,
+                        method TEXT,
+                        status TEXT,
+                        proof_file TEXT)''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        uid TEXT,
+                        amount REAL,
+                        method TEXT,
+                        address TEXT,
+                        status TEXT)''')
     try:
         conn.execute("ALTER TABLE deposits ADD COLUMN proof_file TEXT")
         conn.commit()
     except sqlite3.OperationalError:
-        pass # Column already exists
+        pass
 
 def calculate_team_investment(uid):
     total = 0.0
@@ -67,8 +90,7 @@ BIG_COIN_SVG = """<div style="position: relative; display: inline-block;"><div s
 
 SMALL_COIN_SVG = '<svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="48" fill="#fdb913"/><circle cx="50" cy="50" r="40" fill="#2b1442"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#fdb913" font-family="sans-serif" font-weight="900" font-size="30">$</text></svg>'
 
-USER_LOGIN_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MEMBER PORTAL - B4U NETWORK</title><link rel="icon" href='""" + COIN_FAVICON + """' type="image/svg+xml"><style>body { background: #0d0414; color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }.login-card { background: linear-gradient(145deg, #230d36, #150622); border-top: 5px solid #fdb913; border-bottom: 2px solid #fdb913; padding: 40px 35px; border-radius: 20px; width: 350px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); text-align: center; }h2 { color: #fdb913; font-size: 22px; margin-top: 15px; font-weight: 800; letter-spacing: 1px; margin-bottom: 25px; text-shadow: 0 0 10px rgba(253,185,19,0.3); }
-input { width: 100%; padding: 12px 15px; background: #0a0210; border: 1px solid #4a256d; border-radius: 8px; color: white; margin-bottom: 18px; box-sizing: border-box; outline:none; font-size:14px; transition: 0.3s; }input:focus { border-color: #fdb913; box-shadow: 0 0 10px rgba(253, 185, 19, 0.4); }button { width: 100%; padding: 13px; background: linear-gradient(135deg, #fdb913, #e28700); border: none; font-weight: 800; cursor: pointer; border-radius: 8px; color: #1a0928; font-size: 15px; letter-spacing:1px; transition: 0.3s; }button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(253, 185, 19, 0.5); }.err { color: #ff4d4d; font-size: 13px; margin-bottom: 15px; background: rgba(255,77,77,0.12); border: 1px solid rgba(255,77,77,0.3); padding: 10px; border-radius: 8px; }</style></head><body><div class="login-card">""" + BIG_COIN_SVG + """<h2>B4U SOVEREIGN PORTAL</h2>{% if error %}<div class="err">{{ error }}</div>{% endif %}<form action="/login" method="POST"><input type="text" name="uid" placeholder="Node UID (e.g. B4U1001)" required><input type="password" name="password" placeholder="Access Key" required><button type="submit">AUTHENTICATE & LOG IN</button></form></div></body></html>"""
+USER_LOGIN_HTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MEMBER PORTAL - B4U NETWORK</title><link rel="icon" href="' + COIN_FAVICON + '" type="image/svg+xml"><style>body { background: #0d0414; color: #e9ecef; font-family: \'Segoe UI\', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }.login-card { background: linear-gradient(145deg, #230d36, #150622); border-top: 5px solid #fdb913; border-bottom: 2px solid #fdb913; padding: 40px 35px; border-radius: 20px; width: 350px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); text-align: center; }h2 { color: #fdb913; font-size: 22px; margin-top: 15px; font-weight: 800; letter-spacing: 1px; margin-bottom: 25px; text-shadow: 0 0 10px rgba(253,185,19,0.3); } input { width: 100%; padding: 12px 15px; background: #0a0210; border: 1px solid #4a256d; border-radius: 8px; color: white; margin-bottom: 18px; box-sizing: border-box; outline:none; font-size:14px; transition: 0.3s; } input:focus { border-color: #fdb913; box-shadow: 0 0 10px rgba(253, 185, 19, 0.4); } button { width: 100%; padding: 13px; background: linear-gradient(135deg, #fdb913, #e28700); border: none; font-weight: 800; cursor: pointer; border-radius: 8px; color: #1a0928; font-size: 15px; letter-spacing:1px; transition: 0.3s; } button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(253, 185, 19, 0.5); }.err { color: #ff4d4d; font-size: 13px; margin-bottom: 15px; background: rgba(255,77,77,0.12); border: 1px solid rgba(255,77,77,0.3); padding: 10px; border-radius: 8px; }</style></head><body><div class="login-card">' + BIG_COIN_SVG + '<h2>B4U SOVEREIGN PORTAL</h2>{% if error %}<div class="err">{{ error }}</div>{% endif %}<form action="/login" method="POST"><input type="text" name="uid" placeholder="Node UID (e.g. B4U1001)" required><input type="password" name="password" placeholder="Access Key" required><button type="submit">AUTHENTICATE & LOG IN</button></form></div></body></html>'
 
 USER_DASHBOARD_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><title>FINANCIAL TERMINAL - B4U EMPIRE</title><link rel="icon" href='""" + COIN_FAVICON + """' type="image/svg+xml"><style>@keyframes pulse { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.15); opacity: 0.9; } }body { background-color: #0d0414; color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 22px; box-sizing: border-box; }h1 { color: #fdb913; padding-bottom: 15px; border-bottom: 2px solid #3c1b5d; font-size: 1.4rem; display: flex; justify-content: space-between; align-items: center; margin-top: 0; }.brand-head { display: flex; align-items: center; gap: 12px; }.brand-title { font-weight: 800; letter-spacing: 1.5px; color: #ffffff; font-size: 1.2rem; }.trading-hero { background: linear-gradient(135deg, #210d35 0%, #11051c 100%); border: 2px solid #fdb913; border-radius: 16px; padding: 22px 28px; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(253, 185, 19, 0.15); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; }.hero-left { display: flex; align-items: center; gap: 22px; }.coin-details-title { font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }
 .pair-badge { background: #fdb913; color: #140620; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 900; }.sub-tag { font-size: 12px; color: #a78bfa; margin-top: 4px; }.trading-metrics { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }.metric-box { background: rgba(13, 4, 20, 0.8); border: 1px solid #4a256d; border-radius: 10px; padding: 10px 18px; text-align: center; }.metric-label { font-size: 10px; color: #a78bfa; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }.metric-val { font-size: 18px; font-weight: bold; color: #ffffff; margin-top: 3px; }.price-display { text-align: right; background: rgba(0,0,0,0.3); padding: 12px 20px; border-radius: 12px; border-right: 4px solid #10b981; }
@@ -90,14 +112,9 @@ def user_dashboard():
         withdrawals = conn.execute("SELECT * FROM withdrawals WHERE uid = ? ORDER BY id DESC", (uid,)).fetchall()
     team_vol = calculate_team_investment(uid)
     coin_price, coin_change, total_inv, btc_usd, b4u_in_btc = get_coin_price()
-    user_inv = float(user['inv'] or 0.0)
+    user_inv = float(user['inv'] or 0.0) if user else 0.0
     coin_holdings = round(user_inv / coin_price, 2) if coin_price > 0 else 0.0
-    return render_template_string(USER_DASHBOARD_HTML,
-                                  user=user, deposits=deposits, withdrawals=withdrawals,
-                                  team_volume=round(team_vol, 2), coin_price=coin_price,
-                                  coin_change=coin_change, total_inv=total_inv,
-                                  btc_usd=btc_usd, b4u_in_btc=b4u_in_btc, coin_holdings=coin_holdings,
-                                  msg=msg, err=err)
+    return render_template_string(USER_DASHBOARD_HTML, user=user, deposits=deposits, withdrawals=withdrawals, team_volume=round(team_vol, 2), coin_price=coin_price, coin_change=coin_change, total_inv=total_inv, btc_usd=btc_usd, b4u_in_btc=b4u_in_btc, coin_holdings=coin_holdings, msg=msg, err=err)
 
 @user_app.route('/login', methods=['POST'])
 def user_login():
@@ -105,11 +122,11 @@ def user_login():
     password = request.form.get('password')
     with get_db() as conn:
         user = conn.execute("SELECT * FROM users WHERE uid = ?", (uid,)).fetchone()
-    if user and check_password_hash(user['password'], password):
-        if user['status'] == 'Suspended':
-            return render_template_string(USER_LOGIN_HTML, error="Account Suspended! Contact Network Admin.")
-        session['user_uid'] = user['uid']
-        return redirect('/')
+        if user and check_password_hash(user['password'], password):
+            if user['status'] == 'Suspended':
+                return render_template_string(USER_LOGIN_HTML, error="Account Suspended! Contact Network Admin.")
+            session['user_uid'] = user['uid']
+            return redirect('/')
     return render_template_string(USER_LOGIN_HTML, error="Invalid Node UID or Access Key!")
 
 @user_app.route('/logout')
@@ -119,7 +136,8 @@ def user_logout():
 
 @user_app.route('/deposit', methods=['POST'])
 def user_deposit():
-    if not session.get('user_uid'): return redirect('/')
+    if not session.get('user_uid'): 
+        return redirect('/')
     uid = session['user_uid']
     method = request.form.get('method')
     amount = float(request.form.get('amount') or 0)
@@ -132,15 +150,15 @@ def user_deposit():
             file.save(os.path.join(user_app.config['UPLOAD_FOLDER'], filename))
     if amount > 0:
         with get_db() as conn:
-            conn.execute("INSERT INTO deposits (uid, amount, method, status, proof_file) VALUES (?, ?, ?, '⏳ Pending Verification', ?)",
-                         (uid, amount, method, filename))
+            conn.execute("INSERT INTO deposits (uid, amount, method, status, proof_file) VALUES (?, ?, ?, '⏳ Pending Verification', ?)", (uid, amount, method, filename))
             conn.commit()
         return redirect('/?msg=Deposit request & proof uploaded successfully!')
     return redirect('/?err=Invalid deposit amount!')
 
 @user_app.route('/p2p_transfer', methods=['POST'])
 def p2p_transfer():
-    if not session.get('user_uid'): return redirect('/')
+    if not session.get('user_uid'): 
+        return redirect('/')
     sender_uid = session['user_uid']
     receiver_uid = request.form.get('receiver_uid', '').strip()
     amount = float(request.form.get('amount') or 0)
@@ -158,10 +176,8 @@ def p2p_transfer():
         if sender and float(sender['profit_wallet']) >= amount:
             conn.execute("UPDATE users SET profit_wallet = round(profit_wallet - ?, 2) WHERE uid = ?", (amount, sender_uid))
             conn.execute("UPDATE users SET profit_wallet = round(profit_wallet + ?, 2) WHERE uid = ?", (amount, receiver_uid))
-            conn.execute("INSERT INTO withdrawals (uid, amount, method, address, status) VALUES (?, ?, 'P2P Sent', ?, '✅ Instant Completed')",
-                         (sender_uid, amount, f"To Node: {receiver_uid}"))
-            conn.execute("INSERT INTO deposits (uid, amount, method, status) VALUES (?, ?, 'P2P Received', '✅ Instant Completed')",
-                         (receiver_uid, amount))
+            conn.execute("INSERT INTO withdrawals (uid, amount, method, address, status) VALUES (?, ?, 'P2P Sent', ?, '✅ Instant Completed')", (sender_uid, amount, f"To Node: {receiver_uid}"))
+            conn.execute("INSERT INTO deposits (uid, amount, method, status) VALUES (?, ?, 'P2P Received', '✅ Instant Completed')", (receiver_uid, amount))
             conn.commit()
             return redirect(f'/?msg=Successfully transferred ${amount} to {receiver_uid}!')
         else:
@@ -169,7 +185,8 @@ def p2p_transfer():
 
 @user_app.route('/withdraw', methods=['POST'])
 def user_withdraw():
-    if not session.get('user_uid'): return redirect('/')
+    if not session.get('user_uid'): 
+        return redirect('/')
     uid = session['user_uid']
     method = request.form.get('method')
     address = request.form.get('address')
@@ -178,8 +195,7 @@ def user_withdraw():
         user = conn.execute("SELECT profit_wallet FROM users WHERE uid = ?", (uid,)).fetchone()
         if user and amount > 0 and float(user['profit_wallet']) >= amount:
             conn.execute("UPDATE users SET profit_wallet = round(profit_wallet - ?, 2) WHERE uid = ?", (amount, uid))
-            conn.execute("INSERT INTO withdrawals (uid, amount, method, address, status) VALUES (?, ?, ?, ?, '⏳ Pending Approval')",
-                         (uid, amount, method, address))
+            conn.execute("INSERT INTO withdrawals (uid, amount, method, address, status) VALUES (?, ?, ?, ?, '⏳ Pending Approval')", (uid, amount, method, address))
             conn.commit()
             return redirect('/?msg=Withdrawal request submitted!')
     return redirect('/?err=Insufficient balance or invalid amount!')
@@ -189,4 +205,5 @@ def uploaded_file(filename):
     return send_from_directory(user_app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == '__main__':
-    user_app.run(host='0.0.0.0', port=50001, debug=False)
+    port = int(os.environ.get('PORT', 50001))
+    user_app.run(host='0.0.0.0', port=port, debug=False)
