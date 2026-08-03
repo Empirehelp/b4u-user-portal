@@ -1,0 +1,157 @@
+{
+    "users": {
+        "B4U1001": {
+            "name": "Ahsan Farooqi",
+            "password": "admin",
+            "rank": "Tiffany",
+            "inv": 1000.0,
+            "cash": 200.0,
+            "profit_wallet": 85.03,
+            "status": "Active",
+            "referrer": null,
+            "role": "Admin",
+            "bonus_claimed": true,
+            "bonus_amount": 250
+        },
+        "B4U1002": {
+            "name": "Naveed Ahmed Khan",
+            "password": "112233",
+            "rank": "Tiffany",
+            "inv": 0.0,
+            "cash": 0.0,
+            "profit_wallet": 0.0,
+            "status": "Active",
+            "referrer": "B4U1001",
+            "role": "Member"
+        },
+        "B4U1003": {
+            "name": "Niaz Ahmed",
+            "password": "Niaz123$$",
+            "rank": "Tiffany",
+            "inv": 10.0,
+            "cash": 100.0,
+            "profit_wallet": 2.89,
+            "status": "Active",
+            "referrer": "B4U1001",
+            "role": "Member"
+        },
+        "B4U1004": {
+            "name": "Checcking id",
+            "password": "112233",
+            "rank": "Tiffany",
+            "inv": 20.0,
+            "cash": 0.0,
+            "profit_wallet": 5.0,
+            "status": "Active",
+            "referrer": "B4U1003",
+            "role": "Member"
+        },
+        "B4U1005": {
+            "name": "B4U1003",
+            "password": "112233",
+            "rank": "Tiffany",
+            "inv": 40.0,
+            "cash": 0.0,
+            "profit_wallet": 10.0,
+            "status": "Active",
+            "referrer": "B4U1003",
+            "role": "Member"
+        },
+        "B4U1006": {
+            "name": "arham habib",
+            "password": "112233",
+            "rank": "Tiffany",
+            "inv": 500.0,
+            "cash": 0.0,
+            "profit_wallet": 85.0,
+            "status": "Active",
+            "referrer": "B4U1001",
+            "role": "Member",
+            "bonus_claimed": true,
+            "bonus_amount": 500
+        },
+        "B4U1007": {
+            "name": "Shahyar",
+            "password": "786121",
+            "rank": "Tiffany",
+            "inv": 400.0,
+            "cash": 0.0,
+            "profit_wallet": 68.0,
+            "status": "Active",
+            "referrer": "B4U1001",
+            "role": "Member",
+            "bonus_claimed": true,
+            "bonus_amount": 400
+        },
+        "B4U1008": {
+            "name": "Muhammadliaqatali",
+            "password": "555500",
+            "rank": "Tiffany",
+            "inv": 50.0,
+            "cash": 0.0,
+            "profit_wallet": 8.5,
+            "status": "Active",
+            "referrer": "B4U1001",
+            "role": "Member",
+            "bonus_claimed": true,
+            "bonus_amount": 50.0
+        }
+    },
+    "deposits": [],
+    "withdrawals": [
+        {
+            "id": 1,
+            "uid": "B4U1001",
+            "amount": 30.0,
+            "method": "EasyPaisa Personal Account",
+            "address": "03056610136",
+            "status": "✅ Approved"
+        },
+        {
+            "id": 2,
+            "uid": "B4U1001",
+            "amount": 30.0,
+            "method": "EasyPaisa Personal Account",
+            "address": "03056610136",
+            "status": "✅ Approved"
+        },
+        {
+            "id": 3,
+            "uid": "B4U1001",
+            "amount": 50.0,
+            "method": "EasyPaisa Personal Account",
+            "address": "03056610136",
+            "status": "✅ Approved"
+        },
+        {
+            "id": 4,
+            "uid": "B4U1001",
+            "amount": 20.0,
+            "method": "EasyPaisa Personal Account",
+            "address": "03056610136",
+            "status": "✅ Approved"
+        },
+        {
+            "id": 5,
+            "uid": "B4U1001",
+            "amount": 70.0,
+            "method": "EasyPaisa Personal Account",
+            "address": "03056610136",
+            "status": "⏳ Pending Liquidation"
+        }
+    ],
+    "profit_history": [
+        {
+            "date": "2026-07-19 08:05",
+            "percentage": 5.0
+        }
+    ],
+    "p2p_transfers": [
+        {
+            "sender": "B4U1001",
+            "recipient": "B4U1003",
+            "amount": 100.0,
+            "wallet": "cash"
+        }
+    ]
+}
