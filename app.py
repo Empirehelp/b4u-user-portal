@@ -5,20 +5,30 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, redirect, render_template_string, session
 
 user_app = Flask('user_app')
-app = user_app  # Gunicorn / Render entrypoint compatibility
+app = user_app  
 user_app.secret_key = os.environ.get('SECRET_KEY', 'b4u_empire_shadow_sovereign_gate_2026')
 
-# Render temporary writable directory
 DB_FILE = "/tmp/database.db"
 
-RANKS_CONFIG = {
-    "Tiffany": {"min_p": 10, "max_p": 699, "min_t": 0},
-    "Blue Moon": {"min_p": 700, "max_p": 2999, "min_t": 5000},
-    "Aurora": {"min_p": 3000, "max_p": 9999, "min_t": 30000},
-    "Cullinan": {"min_p": 10000, "max_p": 29999, "min_t": 100000},
-    "Sancy": {"min_p": 30000, "max_p": 49999, "min_t": 500000},
-    "KohiNoor": {"min_p": 50000, "max_p": 1000000, "min_t": 1000000}
-}
+# Seed Data (JSON se extracted data)
+SEED_USERS = [
+    ("B4U1001", "Ahsan Farooqi", "admin", "Tiffany", 1000.0, 85.03, "Active", None),
+    ("B4U1002", "Naveed Ahmed Khan", "112233", "Tiffany", 0.0, 0.0, "Active", "B4U1001"),
+    ("B4U1003", "Niaz Ahmed", "Niaz123$$", "Tiffany", 10.0, 2.89, "Active", "B4U1001"),
+    ("B4U1004", "Checcking id", "112233", "Tiffany", 20.0, 5.0, "Active", "B4U1003"),
+    ("B4U1005", "B4U1003", "112233", "Tiffany", 40.0, 10.0, "Active", "B4U1003"),
+    ("B4U1006", "arham habib", "112233", "Tiffany", 500.0, 85.0, "Active", "B4U1001"),
+    ("B4U1007", "Shahyar", "786121", "Tiffany", 400.0, 68.0, "Active", "B4U1001"),
+    ("B4U1008", "Muhammadliaqatali", "555500", "Tiffany", 50.0, 8.5, "Active", "B4U1001")
+]
+
+SEED_WITHDRAWALS = [
+    ("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+    ("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+    ("B4U1001", 50.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+    ("B4U1001", 20.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+    ("B4U1001", 70.0, "EasyPaisa Personal Account", "03056610136", "⏳ Pending Liquidation")
+]
 
 def get_db():
     conn = sqlite3.connect(DB_FILE)
@@ -32,13 +42,12 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 uid TEXT UNIQUE,
                 name TEXT,
-                email TEXT UNIQUE,
                 password TEXT,
-                referrer TEXT,
+                rank TEXT DEFAULT 'Tiffany',
                 inv REAL DEFAULT 0.0,
                 profit_wallet REAL DEFAULT 0.0,
-                rank TEXT DEFAULT 'Tiffany',
                 status TEXT DEFAULT 'Active',
+                referrer TEXT,
                 created_at TEXT
             )
         """)
@@ -63,6 +72,20 @@ def init_db():
                 created_at TEXT
             )
         """)
+        
+        # Insert initial seed data if table is empty
+        user_count = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()['count']
+        if user_count == 0:
+            for uid, name, pwd, rank, inv, profit, status, referrer in SEED_USERS:
+                conn.execute(
+                    "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, status, referrer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (uid, name, generate_password_hash(pwd), rank, inv, profit, status, referrer, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+                )
+            for uid, amt, method, addr, status in SEED_WITHDRAWALS:
+                conn.execute(
+                    "INSERT INTO withdrawals (uid, amount, method, address, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (uid, amt, method, addr, status, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+                )
         conn.commit()
 
 @app.before_request
@@ -87,7 +110,6 @@ def get_coin_price():
     price_growth = (total_inv / 1000.0) * 0.05
     coin_price = round(base_price + price_growth, 4)
     coin_change = round(((coin_price - base_price) / base_price) * 100, 2)
-
     btc_usd = 68500.0
     b4u_in_btc = f"{coin_price / btc_usd:.8f}"
     
@@ -342,7 +364,7 @@ def user_login():
     password = request.form.get('password')
     with get_db() as conn:
         user = conn.execute("SELECT * FROM users WHERE uid = ?", (uid,)).fetchone()
-        if user and check_password_hash(user['password'], password):
+        if user and (check_password_hash(user['password'], password) or user['password'] == password):
             if user['status'] == 'Suspended':
                 return render_template_string(USER_LOGIN_HTML, error="Account Suspended! Contact Admin.")
             session['user_uid'] = user['uid']
@@ -365,8 +387,8 @@ def user_deposit():
     if amount > 0:
         with get_db() as conn:
             conn.execute(
-                "INSERT INTO deposits (uid, amount, method, status) VALUES (?, ?, ?, '⏳ Pending Verification')",
-                (uid, amount, method)
+                "INSERT INTO deposits (uid, amount, method, status, created_at) VALUES (?, ?, ?, '⏳ Pending Verification', ?)",
+                (uid, amount, method, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
             )
             conn.commit()
     return redirect('/')
@@ -385,8 +407,8 @@ def user_withdraw():
         if user and amount > 0 and float(user['profit_wallet']) >= amount:
             conn.execute("UPDATE users SET profit_wallet = round(profit_wallet - ?, 2) WHERE uid = ?", (amount, uid))
             conn.execute(
-                "INSERT INTO withdrawals (uid, amount, method, address, status) VALUES (?, ?, ?, ?, '⏳ Pending Approval')",
-                (uid, amount, method, address)
+                "INSERT INTO withdrawals (uid, amount, method, address, status, created_at) VALUES (?, ?, ?, ?, '⏳ Pending Approval', ?)",
+                (uid, amount, method, address, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
             )
             conn.commit()
     return redirect('/')
