@@ -5,10 +5,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, redirect, render_template_string, session
 
 user_app = Flask('user_app')
+app = user_app  # Gunicorn / Render entrypoint compatibility
 user_app.secret_key = os.environ.get('SECRET_KEY', 'b4u_empire_shadow_sovereign_gate_2026')
-DB_FILE = "database.db"
 
-# Fixed key quotes syntax error
+# Render temporary writable directory
+DB_FILE = "/tmp/database.db"
+
 RANKS_CONFIG = {
     "Tiffany": {"min_p": 10, "max_p": 699, "min_t": 0},
     "Blue Moon": {"min_p": 700, "max_p": 2999, "min_t": 5000},
@@ -22,6 +24,50 @@ def get_db():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
+
+def init_db():
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uid TEXT UNIQUE,
+                name TEXT,
+                email TEXT UNIQUE,
+                password TEXT,
+                referrer TEXT,
+                inv REAL DEFAULT 0.0,
+                profit_wallet REAL DEFAULT 0.0,
+                rank TEXT DEFAULT 'Tiffany',
+                status TEXT DEFAULT 'Active',
+                created_at TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS deposits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uid TEXT,
+                amount REAL,
+                method TEXT,
+                status TEXT DEFAULT '⏳ Pending Verification',
+                created_at TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS withdrawals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uid TEXT,
+                amount REAL,
+                method TEXT,
+                address TEXT,
+                status TEXT DEFAULT '⏳ Pending Approval',
+                created_at TEXT
+            )
+        """)
+        conn.commit()
+
+@app.before_request
+def setup_db():
+    init_db()
 
 def calculate_team_investment(uid):
     total = 0.0
@@ -42,7 +88,6 @@ def get_coin_price():
     coin_price = round(base_price + price_growth, 4)
     coin_change = round(((coin_price - base_price) / base_price) * 100, 2)
 
-    # Bitcoin benchmark reference rate
     btc_usd = 68500.0
     b4u_in_btc = f"{coin_price / btc_usd:.8f}"
     
@@ -135,10 +180,10 @@ USER_DASHBOARD_HTML = """<!DOCTYPE html>
     <h1>
         <div class="brand-head">
             """ + SMALL_COIN_SVG + """
-            <span class="brand-title">WELCOME, {{ user.name }}</span>
+            <span class="brand-title">WELCOME, {{ user.name if user else 'MEMBER' }}</span>
         </div>
         <div>
-            <span style="font-size: 12px; color: #fdb913; border: 1px solid #fdb913; padding: 4px 12px; border-radius: 20px; margin-right: 10px; background: rgba(253,185,19,0.1);">NODE: {{ user.uid }}</span>
+            <span style="font-size: 12px; color: #fdb913; border: 1px solid #fdb913; padding: 4px 12px; border-radius: 20px; margin-right: 10px; background: rgba(253,185,19,0.1);">NODE: {{ user.uid if user else '' }}</span>
             <a href="/logout" class="logout-btn">LOGOUT</a>
         </div>
     </h1>
@@ -175,15 +220,15 @@ USER_DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="stats-grid">
         <div class="stat-card" style="border-left: 4px solid #fdb913;">
             <small style="color:#a78bfa;">MY RANK</small>
-            <div class="stat-num" style="color:#fdb913;">{{ user.rank }}</div>
+            <div class="stat-num" style="color:#fdb913;">{{ user.rank if user else 'Tiffany' }}</div>
         </div>
         <div class="stat-card" style="border-left: 4px solid #10b981;">
             <small style="color:#a78bfa;">TOTAL ACTIVE INVESTMENT</small>
-            <div class="stat-num">${{ user.inv }}</div>
+            <div class="stat-num">${{ user.inv if user else 0.0 }}</div>
         </div>
         <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
             <small style="color:#a78bfa;">PROFIT WALLET</small>
-            <div class="stat-num">${{ user.profit_wallet }}</div>
+            <div class="stat-num">${{ user.profit_wallet if user else 0.0 }}</div>
         </div>
         <div class="stat-card" style="border-left: 4px solid #3b82f6;">
             <small style="color:#a78bfa;">TEAM VOLUME</small>
@@ -194,7 +239,7 @@ USER_DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="box">
         <h2>🔗 Your Referral Connection Key</h2>
         <p style="font-size: 13px; color: #a78bfa; margin: 0;">Share your UID with new partners to build your downline team:</p>
-        <div class="ref-box">REFERRAL CODE: <b>{{ user.uid }}</b></div>
+        <div class="ref-box">REFERRAL CODE: <b>{{ user.uid if user else '' }}</b></div>
     </div>
 
     <div class="box deposit">
@@ -274,7 +319,7 @@ def user_dashboard():
     team_vol = calculate_team_investment(uid)
     coin_price, coin_change, total_inv, btc_usd, b4u_in_btc = get_coin_price()
     
-    user_inv = float(user['inv'] or 0.0)
+    user_inv = float(user['inv'] or 0.0) if user else 0.0
     coin_holdings = round(user_inv / coin_price, 2) if coin_price > 0 else 0.0
     
     return render_template_string(
