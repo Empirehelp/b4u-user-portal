@@ -1,5 +1,6 @@
 import os
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, redirect, render_template_string, session, url_for
@@ -8,136 +9,167 @@ user_app = Flask('user_app')
 app = user_app
 user_app.secret_key = os.environ.get('SECRET_KEY', 'b4u_empire_shadow_sovereign_gate_2026')
 
-DB_FILE = "/tmp/database.db"
+# Supabase PostgreSQL Connection URL from environment variables
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 SEED_USERS = [
-    ("B4U1001", "Ahsan Farooqi", "admin", "Tiffany", 1000.0, 85.03, 500.0, "Active", None),
-    ("B4U1002", "Naveed Ahmed Khan", "112233", "Tiffany", 0.0, 0.0, 0.0, "Active", "B4U1001"),
-    ("B4U1003", "Niaz Ahmed", "Niaz123$$", "Tiffany", 10.0, 2.89, 50.0, "Active", "B4U1001"),
-    ("B4U1004", "Checcking id", "112233", "Tiffany", 20.0, 5.0, 0.0, "Active", "B4U1003"),
-    ("B4U1005", "B4U1003", "112233", "Tiffany", 40.0, 10.0, 15.0, "Active", "B4U1003"),
-    ("B4U1006", "arham habib", "112233", "Tiffany", 500.0, 85.0, 200.0, "Active", "B4U1001"),
-    ("B4U1007", "Shahyar", "786121", "Tiffany", 400.0, 68.0, 100.0, "Active", "B4U1001"),
-    ("B4U1008", "Muhammadliaqatali", "555500", "Tiffany", 50.0, 8.5, 25.0, "Active", "B4U1001")
+("B4U1001", "Ahsan Farooqi", "admin", "Tiffany", 1000.0, 85.03, 500.0, "Active", None),
+("B4U1002", "Naveed Ahmed Khan", "112233", "Tiffany", 0.0, 0.0, 0.0, "Active", "B4U1001"),
+("B4U1003", "Niaz Ahmed", "Niaz123$$", "Tiffany", 10.0, 2.89, 50.0, "Active", "B4U1001"),
+("B4U1004", "Checcking id", "112233", "Tiffany", 20.0, 5.0, 0.0, "Active", "B4U1003"),
+("B4U1005", "B4U1003", "112233", "Tiffany", 40.0, 10.0, 15.0, "Active", "B4U1003"),
+("B4U1006", "arham habib", "112233", "Tiffany", 500.0, 85.0, 200.0, "Active", "B4U1001"),
+("B4U1007", "Shahyar", "786121", "Tiffany", 400.0, 68.0, 100.0, "Active", "B4U1001"),
+("B4U1008", "Muhammadliaqatali", "555500", "Tiffany", 50.0, 8.5, 25.0, "Active", "B4U1001")
 ]
 
 SEED_WITHDRAWALS = [
-    ("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 50.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 20.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 70.0, "EasyPaisa Personal Account", "03056610136", "⏳ Pending Liquidation")
+("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 50.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 20.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 70.0, "EasyPaisa Personal Account", "03056610136", "⏳ Pending Liquidation")
 ]
 
 def get_db():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    else:
+        # Fallback local connection if URL is missing
+        import sqlite3
+        conn = sqlite3.connect("/tmp/database.db")
+        conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    with get_db() as conn:
-        conn.execute("""CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uid TEXT UNIQUE,
-            name TEXT,
-            password TEXT,
-            rank TEXT DEFAULT 'Tiffany',
-            inv REAL DEFAULT 0.0,
-            profit_wallet REAL DEFAULT 0.0,
-            p2p_wallet REAL DEFAULT 0.0,
-            status TEXT DEFAULT 'Active',
-            referrer TEXT,
-            created_at TEXT
-        )""")
-        cols = [col[1] for col in conn.execute("PRAGMA table_info(users)").fetchall()]
-        if 'p2p_wallet' not in cols:
-            conn.execute("ALTER TABLE users ADD COLUMN p2p_wallet REAL DEFAULT 0.0")
-
-        conn.execute("""CREATE TABLE IF NOT EXISTS deposits (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uid TEXT,
-            amount REAL,
-            method TEXT,
-            status TEXT DEFAULT '⏳ Pending Verification',
-            created_at TEXT
-        )""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS withdrawals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uid TEXT,
-            amount REAL,
-            method TEXT,
-            address TEXT,
-            status TEXT DEFAULT '⏳ Pending Approval',
-            created_at TEXT
-        )""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS p2p_transfers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender TEXT,
-            recipient TEXT,
-            amount REAL,
-            created_at TEXT
-        )""")
-
-        user_count = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()['count']
-        if user_count == 0:
-            for uid, name, pwd, rank, inv, profit, p2p_w, status, referrer in SEED_USERS:
-                conn.execute(
-                    "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (uid, name, generate_password_hash(pwd), rank, inv, profit, p2p_w, status, referrer, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
-                )
-            for uid, amt, method, addr, status in SEED_WITHDRAWALS:
-                conn.execute(
-                    "INSERT INTO withdrawals (uid, amount, method, address, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (uid, amt, method, addr, status, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
-                )
-            conn.execute(
-                "INSERT INTO p2p_transfers (sender, recipient, amount, created_at) VALUES ('B4U1001', 'B4U1003', 100.0, ?)",
-                (datetime.utcnow().strftime("%Y-%m-%d %H:%M"),)
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # PostgreSQL syntax compatible tables
+    cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        uid TEXT UNIQUE,
+        name TEXT,
+        password TEXT,
+        rank TEXT DEFAULT 'Tiffany',
+        inv REAL DEFAULT 0.0,
+        profit_wallet REAL DEFAULT 0.0,
+        p2p_wallet REAL DEFAULT 0.0,
+        status TEXT DEFAULT 'Active',
+        referrer TEXT,
+        created_at TEXT
+    )""")
+    
+    cursor.execute("""CREATE TABLE IF NOT EXISTS deposits (
+        id SERIAL PRIMARY KEY,
+        uid TEXT,
+        amount REAL,
+        method TEXT,
+        status TEXT DEFAULT '⏳ Pending Verification',
+        created_at TEXT
+    )""")
+    
+    cursor.execute("""CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        uid TEXT,
+        amount REAL,
+        method TEXT,
+        address TEXT,
+        status TEXT DEFAULT '⏳ Pending Approval',
+        created_at TEXT
+    )""")
+    
+    cursor.execute("""CREATE TABLE IF NOT EXISTS p2p_transfers (
+        id SERIAL PRIMARY KEY,
+        sender TEXT,
+        recipient TEXT,
+        amount REAL,
+        created_at TEXT
+    )""")
+    
+    conn.commit()
+    
+    cursor.execute("SELECT COUNT(*) as count FROM users")
+    user_count = cursor.fetchone()['count']
+    
+    if user_count == 0:
+        for uid, name, pwd, rank, inv, profit, p2p_w, status, referrer in SEED_USERS:
+            cursor.execute(
+                "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (uid, name, generate_password_hash(pwd), rank, inv, profit, p2p_w, status, referrer, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
             )
-            conn.commit()
+        for uid, amt, method, addr, status in SEED_WITHDRAWALS:
+            cursor.execute(
+                "INSERT INTO withdrawals (uid, amount, method, address, status, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
+                (uid, amt, method, addr, status, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+            )
+        cursor.execute(
+            "INSERT INTO p2p_transfers (sender, recipient, amount, created_at) VALUES ('B4U1001', 'B4U1003', 100.0, %s)",
+            (datetime.utcnow().strftime("%Y-%m-%d %H:%M"),)
+        )
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
 
 @app.before_request
 def setup_db():
     init_db()
 
 def generate_next_uid():
-    with get_db() as conn:
-        row = conn.execute("SELECT uid FROM users ORDER BY id DESC LIMIT 1").fetchone()
-        if row and row['uid'].startswith("B4U"):
-            last_num = int(row['uid'].replace("B4U", ""))
-            return f"B4U{last_num + 1}"
-        return "B4U1001"
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT uid FROM users ORDER BY id DESC LIMIT 1")
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if row and row['uid'].startswith("B4U"):
+        last_num = int(row['uid'].replace("B4U", ""))
+        return f"B4U{last_num + 1}"
+    return "B4U1001"
 
 def calculate_team_investment(uid):
     total = 0.0
-    with get_db() as conn:
-        refs = conn.execute("SELECT uid, inv FROM users WHERE referrer = ?", (uid,)).fetchall()
-        for ref in refs:
-            total += float(ref['inv'] or 0.0)
-            total += calculate_team_investment(ref['uid'])
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT uid, inv FROM users WHERE referrer = %s", (uid,))
+    refs = cursor.fetchall()
+    for ref in refs:
+        total += float(ref['inv'] or 0.0)
+        total += calculate_team_investment(ref['uid'])
+    cursor.close()
+    conn.close()
     return total
 
 def get_downline_tree(uid, level=1):
     tree = []
-    with get_db() as conn:
-        refs = conn.execute("SELECT uid, name, inv, rank, status, created_at FROM users WHERE referrer = ?", (uid,)).fetchall()
-        for ref in refs:
-            member = dict(ref)
-            member['level'] = level
-            tree.append(member)
-            tree.extend(get_downline_tree(ref['uid'], level + 1))
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT uid, name, inv, rank, status, created_at FROM users WHERE referrer = %s", (uid,))
+    refs = cursor.fetchall()
+    for ref in refs:
+        member = dict(ref)
+        member['level'] = level
+        tree.append(member)
+        tree.extend(get_downline_tree(ref['uid'], level + 1))
+    cursor.close()
+    conn.close()
     return tree
 
 def get_coin_price():
-    with get_db() as conn:
-        res = conn.execute("SELECT SUM(inv) as total FROM users").fetchone()
-        total_inv = float(res['total'] or 0.0) if res else 0.0
-        base_price = 1.00
-        price_growth = (total_inv / 1000.0) * 0.05
-        coin_price = round(base_price + price_growth, 4)
-        coin_change = round(((coin_price - base_price) / base_price) * 100, 2)
-        btc_usd = 68500.0
-        b4u_in_btc = f"{coin_price / btc_usd:.8f}"
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT SUM(inv) as total FROM users")
+    res = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    total_inv = float(res['total'] or 0.0) if res else 0.0
+    base_price = 1.00
+    price_growth = (total_inv / 1000.0) * 0.05
+    coin_price = round(base_price + price_growth, 4)
+    coin_change = round(((coin_price - base_price) / base_price) * 100, 2)
+    btc_usd = 68500.0
+    b4u_in_btc = f"{coin_price / btc_usd:.8f}"
     return coin_price, coin_change, total_inv, btc_usd, b4u_in_btc
 
 COIN_FAVICON = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23fdb913'/><circle cx='50' cy='50' r='40' fill='%232b1442'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' fill='%23fdb913' font-family='sans-serif' font-weight='900' font-size='30'>$</text></svg>"
@@ -163,11 +195,23 @@ def user_dashboard():
     msg = session.pop('flash_msg', None)
     msg_type = session.pop('flash_type', 'success')
 
-    with get_db() as conn:
-        user = conn.execute("SELECT * FROM users WHERE uid = ?", (uid,)).fetchone()
-        deposits = conn.execute("SELECT * FROM deposits WHERE uid = ? ORDER BY id DESC", (uid,)).fetchall()
-        withdrawals = conn.execute("SELECT * FROM withdrawals WHERE uid = ? ORDER BY id DESC", (uid,)).fetchall()
-        p2p_history = conn.execute("SELECT * FROM p2p_transfers WHERE sender = ? OR recipient = ? ORDER BY id DESC", (uid, uid)).fetchall()
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM users WHERE uid = %s", (uid,))
+    user = cursor.fetchone()
+    
+    cursor.execute("SELECT * FROM deposits WHERE uid = %s ORDER BY id DESC", (uid,))
+    deposits = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM withdrawals WHERE uid = %s ORDER BY id DESC", (uid,))
+    withdrawals = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM p2p_transfers WHERE sender = %s OR recipient = %s ORDER BY id DESC", (uid, uid))
+    p2p_history = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
 
     team_vol = calculate_team_investment(uid)
     downline_tree = get_downline_tree(uid)
@@ -208,12 +252,15 @@ def user_register_page():
     new_uid = generate_next_uid()
     hashed_pwd = generate_password_hash(password)
 
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, created_at) VALUES (?, ?, ?, 'Tiffany', 0.0, 0.0, 0.0, 'Active', ?, ?)",
-            (new_uid, name, hashed_pwd, referrer, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
-        )
-        conn.commit()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, created_at) VALUES (%s, %s, %s, 'Tiffany', 0.0, 0.0, 0.0, 'Active', %s, %s)",
+        (new_uid, name, hashed_pwd, referrer, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     return render_template_string(USER_LOGIN_HTML, error=None, msg=f"Account created successfully! Your Node UID is {new_uid}. Please login.")
 
@@ -222,8 +269,12 @@ def user_login():
     uid = request.form.get('uid')
     password = request.form.get('password')
 
-    with get_db() as conn:
-        user = conn.execute("SELECT * FROM users WHERE uid = ?", (uid,)).fetchone()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE uid = %s", (uid,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
 
     if user and (check_password_hash(user['password'], password) or user['password'] == password):
         if user['status'] == 'Suspended':
@@ -257,27 +308,38 @@ def user_p2p_transfer():
         session['flash_type'] = "error"
         return redirect('/')
 
-    with get_db() as conn:
-        sender = conn.execute("SELECT profit_wallet FROM users WHERE uid = ?", (sender_uid,)).fetchone()
-        recipient = conn.execute("SELECT uid FROM users WHERE uid = ?", (recipient_uid,)).fetchone()
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT profit_wallet FROM users WHERE uid = %s", (sender_uid,))
+    sender = cursor.fetchone()
+    
+    cursor.execute("SELECT uid FROM users WHERE uid = %s", (recipient_uid,))
+    recipient = cursor.fetchone()
 
-        if not recipient:
-            session['flash_msg'] = f"Recipient Node {recipient_uid} not found!"
-            session['flash_type'] = "error"
-            return redirect('/')
+    if not recipient:
+        cursor.close()
+        conn.close()
+        session['flash_msg'] = f"Recipient Node {recipient_uid} not found!"
+        session['flash_type'] = "error"
+        return redirect('/')
 
-        if not sender or float(sender['profit_wallet']) < amount:
-            session['flash_msg'] = "Insufficient funds in Profit Wallet!"
-            session['flash_type'] = "error"
-            return redirect('/')
+    if not sender or float(sender['profit_wallet']) < amount:
+        cursor.close()
+        conn.close()
+        session['flash_msg'] = "Insufficient funds in Profit Wallet!"
+        session['flash_type'] = "error"
+        return redirect('/')
 
-        conn.execute("UPDATE users SET profit_wallet = round(profit_wallet - ?, 2) WHERE uid = ?", (amount, sender_uid))
-        conn.execute("UPDATE users SET p2p_wallet = round(p2p_wallet + ?, 2) WHERE uid = ?", (amount, recipient_uid))
-        conn.execute(
-            "INSERT INTO p2p_transfers (sender, recipient, amount, created_at) VALUES (?, ?, ?, ?)",
-            (sender_uid, recipient_uid, amount, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
-        )
-        conn.commit()
+    cursor.execute("UPDATE users SET profit_wallet = round((profit_wallet::numeric - %s), 2) WHERE uid = %s", (amount, sender_uid))
+    cursor.execute("UPDATE users SET p2p_wallet = round((p2p_wallet::numeric + %s), 2) WHERE uid = %s", (amount, recipient_uid))
+    cursor.execute(
+        "INSERT INTO p2p_transfers (sender, recipient, amount, created_at) VALUES (%s, %s, %s, %s)",
+        (sender_uid, recipient_uid, amount, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     session['flash_msg'] = f"Successfully transferred ${amount} to P2P Wallet of {recipient_uid}!"
     session['flash_type'] = "success"
@@ -293,12 +355,15 @@ def user_deposit():
     amount = float(request.form.get('amount') or 0)
 
     if amount > 0:
-        with get_db() as conn:
-            conn.execute(
-                "INSERT INTO deposits (uid, amount, method, status, created_at) VALUES (?, ?, ?, '⏳ Pending Verification', ?)",
-                (uid, amount, method, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
-            )
-            conn.commit()
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO deposits (uid, amount, method, status, created_at) VALUES (%s, %s, %s, '⏳ Pending Verification', %s)",
+            (uid, amount, method, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
         session['flash_msg'] = "Deposit proof submitted successfully!"
         session['flash_type'] = "success"
 
@@ -314,20 +379,26 @@ def user_withdraw():
     address = request.form.get('address')
     amount = float(request.form.get('amount') or 0)
 
-    with get_db() as conn:
-        user = conn.execute("SELECT profit_wallet FROM users WHERE uid = ?", (uid,)).fetchone()
-        if user and amount > 0 and float(user['profit_wallet']) >= amount:
-            conn.execute("UPDATE users SET profit_wallet = round(profit_wallet - ?, 2) WHERE uid = ?", (amount, uid))
-            conn.execute(
-                "INSERT INTO withdrawals (uid, amount, method, address, status, created_at) VALUES (?, ?, ?, ?, '⏳ Pending Approval', ?)",
-                (uid, amount, method, address, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
-            )
-            conn.commit()
-            session['flash_msg'] = "Withdrawal request submitted!"
-            session['flash_type'] = "success"
-        else:
-            session['flash_msg'] = "Insufficient profit wallet balance for withdrawal!"
-            session['flash_type'] = "error"
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT profit_wallet FROM users WHERE uid = %s", (uid,))
+    user = cursor.fetchone()
+    
+    if user and amount > 0 and float(user['profit_wallet']) >= amount:
+        cursor.execute("UPDATE users SET profit_wallet = round((profit_wallet::numeric - %s), 2) WHERE uid = %s", (amount, uid))
+        cursor.execute(
+            "INSERT INTO withdrawals (uid, amount, method, address, status, created_at) VALUES (%s, %s, %s, %s, '⏳ Pending Approval', %s)",
+            (uid, amount, method, address, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+        )
+        conn.commit()
+        session['flash_msg'] = "Withdrawal request submitted!"
+        session['flash_type'] = "success"
+    else:
+        session['flash_msg'] = "Insufficient profit wallet balance for withdrawal!"
+        session['flash_type'] = "error"
+        
+    cursor.close()
+    conn.close()
 
     return redirect('/')
 
