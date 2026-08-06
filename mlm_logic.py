@@ -50,4 +50,6 @@ def calculate_team_investment(uid):
     return 0.0
 
 def get_coin_price():
-    return 1.0
+    # Returns 5 values to match user_routes.py unpacking:
+    # (coin_price, coin_change, total_inv, btc_usd, b4u_in_btc)
+    return 1.0, 0.0, 0.0, 60000.0, 0.0
