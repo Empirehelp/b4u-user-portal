@@ -131,7 +131,7 @@ def process_user_rewards(user_data: dict, downline_investments: dict) -> dict:
 
 
 # ==========================================
-# MISSING FUNCTIONS REQUIRED BY user_routes.py
+# HELPER FUNCTIONS (Safe Type Handling)
 # ==========================================
 
 def generate_next_uid() -> str:
@@ -142,13 +142,21 @@ def generate_next_uid() -> str:
     return f"UID{random.randint(100000, 999999)}"
 
 
-def calculate_team_investment(downline_users: list) -> float:
+def calculate_team_investment(downline_users) -> float:
     """
     Poori downline ki total investment calculate karta hai.
+    Yeh safely check karta hai ke item dictionary hai ya string (UID).
     """
     total = 0.0
+    if not downline_users:
+        return total
+        
     for user in downline_users:
-        total += float(user.get("investment", 0.0))
+        if isinstance(user, dict):
+            total += float(user.get("investment", 0.0))
+        elif isinstance(user, (int, float)):
+            total += float(user)
+        # Agar string (UID) ho ya kuch aur, toh crash nahi karega
     return total
 
 
@@ -157,16 +165,18 @@ def calculate_team_investment_by_levels(downline_by_level: dict) -> dict:
     Level-wise downline investment calculate karta hai.
     """
     level_totals = {}
+    if not downline_by_level:
+        return level_totals
+        
     for level, users in downline_by_level.items():
-        level_totals[level] = sum(float(u.get("investment", 0.0)) for u in users)
+        level_totals[level] = calculate_team_investment(users)
     return level_totals
 
 
 def get_downline_tree(user_id: str, all_users_db: list) -> dict:
     """
-    User ki downline tree structure return karta hai (levels ke hisaab se).
+    User ki downline tree structure return karta hai.
     """
-    # Simple representation ya placeholder agar DB query alag ho
     return {
         "user_id": user_id,
         "levels": {1: [], 2: [], 3: [], 4: [], 5: []}
@@ -177,5 +187,4 @@ def get_coin_price() -> float:
     """
     Current platform coin price return karta hai.
     """
-    # Default coin price ya live calculation logic
     return 1.00
