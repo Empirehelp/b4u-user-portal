@@ -9,22 +9,22 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'b4u_empire_shadow_sovereign_gate_2026')
 
 SEED_USERS = [
-    ("B4U1001", "Ahsan Farooqi", "admin", "Tiffany", 1000.0, 85.03, 500.0, "Active", None),
-    ("B4U1002", "Naveed Ahmed Khan", "112233", "Tiffany", 0.0, 0.0, 0.0, "Active", "B4U1001"),
-    ("B4U1003", "Niaz Ahmed", "Niaz123$$", "Tiffany", 10.0, 2.89, 50.0, "Active", "B4U1001"),
-    ("B4U1004", "Checcking id", "112233", "Tiffany", 20.0, 5.0, 0.0, "Active", "B4U1003"),
-    ("B4U1005", "B4U1003", "112233", "Tiffany", 40.0, 10.0, 15.0, "Active", "B4U1003"),
-    ("B4U1006", "arham habib", "112233", "Tiffany", 500.0, 85.0, 200.0, "Active", "B4U1001"),
-    ("B4U1007", "Shahyar", "786121", "Tiffany", 400.0, 68.0, 100.0, "Active", "B4U1001"),
-    ("B4U1008", "Muhammadliaqatali", "555500", "Tiffany", 50.0, 8.5, 25.0, "Active", "B4U1001")
+("B4U1001", "Ahsan Farooqi", "admin", "Tiffany", 1000.0, 85.03, 500.0, "Active", None, True),
+("B4U1002", "Naveed Ahmed Khan", "112233", "Tiffany", 0.0, 0.0, 0.0, "Active", "B4U1001", False),
+("B4U1003", "Niaz Ahmed", "Niaz123$$", "Tiffany", 10.0, 2.89, 50.0, "Active", "B4U1001", True),
+("B4U1004", "Checcking id", "112233", "Tiffany", 20.0, 5.0, 0.0, "Active", "B4U1003", False),
+("B4U1005", "B4U1003", "112233", "Tiffany", 40.0, 10.0, 15.0, "Active", "B4U1003", False),
+("B4U1006", "arham habib", "112233", "Tiffany", 500.0, 85.0, 200.0, "Active", "B4U1001", True),
+("B4U1007", "Shahyar", "786121", "Tiffany", 400.0, 68.0, 100.0, "Active", "B4U1001", True),
+("B4U1008", "Muhammadliaqatali", "555500", "Tiffany", 50.0, 8.5, 25.0, "Active", "B4U1001", False)
 ]
 
 SEED_WITHDRAWALS = [
-    ("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 50.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 20.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
-    ("B4U1001", 70.0, "EasyPaisa Personal Account", "03056610136", "⏳ Pending Liquidation")
+("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 30.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 50.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 20.0, "EasyPaisa Personal Account", "03056610136", "✅ Approved"),
+("B4U1001", 70.0, "EasyPaisa Personal Account", "03056610136", "⏳ Pending Liquidation")
 ]
 
 def init_db():
@@ -42,13 +42,20 @@ def init_db():
             p2p_wallet REAL DEFAULT 0.0,
             status TEXT DEFAULT 'Active',
             referrer TEXT,
+            wheel_spun BOOLEAN DEFAULT FALSE,
             created_at TEXT
         );""")
-        
-        cur.execute("""SELECT column_name FROM information_schema.columns 
-                       WHERE table_name='users' AND column_name='p2p_wallet';""")
+
+        # Check for missing columns if table already exists
+        cur.execute("""SELECT column_name FROM information_schema.columns
+        WHERE table_name='users' AND column_name='p2p_wallet';""")
         if not cur.fetchone():
             cur.execute("ALTER TABLE users ADD COLUMN p2p_wallet REAL DEFAULT 0.0;")
+
+        cur.execute("""SELECT column_name FROM information_schema.columns
+        WHERE table_name='users' AND column_name='wheel_spun';""")
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE users ADD COLUMN wheel_spun BOOLEAN DEFAULT FALSE;")
 
         cur.execute("""CREATE TABLE IF NOT EXISTS deposits (
             id SERIAL PRIMARY KEY,
@@ -58,7 +65,7 @@ def init_db():
             status TEXT DEFAULT '⏳ Pending Verification',
             created_at TEXT
         );""")
-        
+
         cur.execute("""CREATE TABLE IF NOT EXISTS withdrawals (
             id SERIAL PRIMARY KEY,
             uid TEXT,
@@ -68,7 +75,7 @@ def init_db():
             status TEXT DEFAULT '⏳ Pending Approval',
             created_at TEXT
         );""")
-        
+
         cur.execute("""CREATE TABLE IF NOT EXISTS p2p_transfers (
             id SERIAL PRIMARY KEY,
             sender TEXT,
@@ -79,12 +86,12 @@ def init_db():
 
         cur.execute("SELECT COUNT(*) as count FROM users;")
         user_count = cur.fetchone()['count']
-        
+
         if user_count == 0:
-            for uid, name, pwd, rank, inv, profit, p2p_w, status, referrer in SEED_USERS:
+            for uid, name, pwd, rank, inv, profit, p2p_w, status, referrer, wheel_spun in SEED_USERS:
                 cur.execute(
-                    "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (uid, name, generate_password_hash(pwd), rank, inv, profit, p2p_w, status, referrer, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+                    "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, wheel_spun, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (uid, name, generate_password_hash(pwd), rank, inv, profit, p2p_w, status, referrer, wheel_spun, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
                 )
             for uid, amt, method, addr, status in SEED_WITHDRAWALS:
                 cur.execute(
@@ -95,7 +102,7 @@ def init_db():
                 "INSERT INTO p2p_transfers (sender, recipient, amount, created_at) VALUES (%s, %s, %s, %s)",
                 ('B4U1001', 'B4U1003', 100.0, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
             )
-        conn.commit()
+            conn.commit()
     finally:
         cur.close()
         conn.close()

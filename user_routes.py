@@ -1,8 +1,9 @@
 from datetime import datetime
-from flask import Blueprint, request, redirect, render_template_string, session, url_for
+import random
+from flask import Blueprint, request, redirect, render_template_string, session, url_for, jsonify
 from database import get_db
 from auth import verify_pwd, hash_pwd
-from mlm_logic import generate_next_uid, calculate_team_investment, get_downline_tree, get_coin_price
+from mlm_logic import generate_next_uid, calculate_team_investment, calculate_team_investment_by_levels, get_downline_tree, get_coin_price
 
 user_bp = Blueprint('user_bp', __name__)
 
@@ -14,7 +15,172 @@ USER_LOGIN_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MEM
 
 USER_REGISTER_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><title>REGISTER - B4U NETWORK</title><link rel="icon" href='""" + COIN_FAVICON + """' type="image/svg+xml"><style>body { background: radial-gradient(circle at center, #240d38 0%, #10041a 100%); color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }.login-card { background: rgba(35, 13, 56, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(16, 185, 129, 0.3); border-top: 5px solid #10b981; padding: 40px 35px; border-radius: 20px; width: 340px; box-shadow: 0 20px 40px rgba(0,0,0,0.7); text-align: center; }h2 { color: #10b981; font-size: 20px; margin-top: 15px; font-weight: 800; letter-spacing: 1px; margin-bottom: 25px; text-shadow: 0 0 10px rgba(16,185,129,0.3); }input { width: 100%; padding: 12px; background: #130620; border: 1px solid #4a256d; border-radius: 8px; color: white; margin-bottom: 18px; box-sizing: border-box; outline:none; font-size:14px; }input:focus { border-color: #10b981; box-shadow: 0 0 12px rgba(16,185,129,0.4); }button { width: 100%; padding: 12px; background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: bold; cursor: pointer; border-radius: 8px; color: white; font-size: 15px; letter-spacing:1px; transition: 0.3s; }button:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(16,185,129,0.4); }.switch-link { color: #a78bfa; font-size: 13px; margin-top: 15px; display: block; text-decoration: none; }</style></head><body><div class="login-card">""" + BIG_COIN_SVG + """<h2>CREATE MEMBER ACCOUNT</h2><form action="/register" method="POST"><input type="text" name="name" placeholder="Full Name" required><input type="password" name="password" placeholder="Set Password" required><input type="text" name="referrer" placeholder="Sponsor UID (Optional)" value="{{ ref_code }}"><button type="submit">JOIN B4U NETWORK</button></form><a href="/" class="switch-link">Already a member? Login</a></div></body></html>"""
 
-USER_DASHBOARD_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MEMBER HUB - B4U NETWORK</title><link rel="icon" href='""" + COIN_FAVICON + """' type="image/svg+xml"><style>@keyframes pulse { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.15); opacity: 0.9; } }body { background: radial-gradient(circle at top, #1c092e 0%, #0c0214 100%); color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 25px; box-sizing: border-box; }h1 { color: #fdb913; padding-bottom: 15px; border-bottom: 2px solid rgba(60, 27, 93, 0.6); font-size: 1.4rem; display: flex; justify-content: space-between; align-items: center; margin-top: 0; }.brand-head { display: flex; align-items: center; gap: 12px; }.brand-title { font-weight: 800; letter-spacing: 1.5px; color: #ffffff; text-shadow: 0 0 15px rgba(253,185,19,0.3); }.trading-hero { background: linear-gradient(135deg, rgba(43, 20, 66, 0.9) 0%, rgba(28, 11, 46, 0.9) 100%); backdrop-filter: blur(10px); border: 1px solid rgba(253, 185, 19, 0.4); border-radius: 18px; padding: 25px 30px; margin-bottom: 25px; box-shadow: 0 10px 35px rgba(253, 185, 19, 0.12); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; }.hero-left { display: flex; align-items: center; gap: 22px; }.coin-details-title { font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }.pair-badge { background: #fdb913; color: #140620; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 900; }.sub-tag { font-size: 12px; color: #a78bfa; margin-top: 4px; }.trading-metrics { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }.metric-box { background: rgba(19, 6, 32, 0.75); border: 1px solid rgba(74, 37, 109, 0.8); border-radius: 12px; padding: 12px 20px; text-align: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }.metric-label { font-size: 10px; color: #a78bfa; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }.metric-val { font-size: 18px; font-weight: bold; color: #ffffff; margin-top: 4px; }.price-display { text-align: right; background: rgba(0,0,0,0.3); padding: 14px 22px; border-radius: 14px; border-right: 4px solid #10b981; border-top: 1px solid rgba(255,255,255,0.05); }.main-price { font-size: 28px; font-weight: 900; color: #fdb913; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(253,185,19,0.4); }.btc-pair { font-size: 13px; color: #f59e0b; font-weight: bold; margin-top: 2px; }.price-change { font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 12px; display: inline-block; margin-top: 5px; }.up { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }.stat-card { background: rgba(35, 13, 56, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(74, 37, 109, 0.7); border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; }.stat-card:hover { transform: translateY(-3px); border-color: rgba(253,185,19,0.4); }.stat-num { font-size: 22px; font-weight: bold; color: white; margin-top: 6px; }h2 { color: #fdb913; margin-top: 20px; border-bottom: 1px solid rgba(74, 37, 109, 0.6); padding-bottom: 8px; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }.box { background: rgba(35, 13, 56, 0.75); backdrop-filter: blur(10px); padding: 22px; border-radius: 16px; margin-bottom: 25px; border-top: 4px solid #8b5cf6; border-left: 1px solid rgba(74, 37, 109, 0.7); border-right: 1px solid rgba(74, 37, 109, 0.7); border-bottom: 1px solid rgba(74, 37, 109, 0.7); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }.box.deposit { border-top-color: #10b981; }.box.withdraw { border-top-color: #ef4444; }.box.p2p { border-top-color: #3b82f6; }.box.tree { border-top-color: #fdb913; }.form-inline { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; }input, select { background: rgba(19, 6, 32, 0.85); color: white; border: 1px solid rgba(90, 42, 138, 0.8); padding: 11px 14px; border-radius: 10px; box-sizing: border-box; min-width: 160px; outline: none; font-size: 13px; transition: 0.2s; }input:focus, select:focus { border-color: #fdb913; box-shadow: 0 0 10px rgba(253, 185, 19, 0.3); }.btn { color: white; padding: 11px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; white-space: nowrap; transition: 0.3s; font-size: 13px; letter-spacing: 0.5px; }.btn:hover { opacity: 0.95; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }.table-wrapper { width: 100%; overflow-x: auto; background: rgba(19, 6, 32, 0.9); margin-top: 12px; border-radius: 12px; border: 1px solid rgba(60, 27, 93, 0.8); }table { width: 100%; border-collapse: collapse; min-width: 600px; }th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid rgba(43, 20, 66, 0.6); font-size: 13px; }th { background-color: rgba(16, 4, 26, 0.95); color: #fdb913; font-weight: 700; }.logout-btn { background: #ef4444; color: white; text-decoration: none; padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: bold; transition: 0.2s; }.logout-btn:hover { background: #dc2626; }.ref-box { background: rgba(16, 4, 26, 0.8); border: 1px dashed rgba(253, 185, 19, 0.5); padding: 14px 18px; border-radius: 10px; color: #fdb913; font-family: monospace; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 10px; flex-wrap: wrap; }.copy-btn { background: #fdb913; color: #140620; border: none; padding: 7px 16px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: 0.2s; }.copy-btn:hover { background: #e28700; }.msg-alert { padding: 14px; border-radius: 10px; margin-bottom: 22px; font-size: 14px; font-weight: bold; text-align: center; backdrop-filter: blur(5px); }.msg-success { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }.msg-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }</style></head><body><h1><div class="brand-head">""" + SMALL_COIN_SVG + """<span class="brand-title">WELCOME, {{ user.name if user else 'MEMBER' }}</span></div><div><span style="font-size: 12px; color: #fdb913; border: 1px solid rgba(253,185,19,0.5); padding: 6px 14px; border-radius: 20px; margin-right: 12px; background: rgba(253,185,19,0.1); font-weight: bold;">NODE: {{ user.uid if user else '' }}</span><a href="/logout" class="logout-btn">LOGOUT</a></div></h1>{% if msg %}<div class="msg-alert msg-{{ msg_type }}">{{ msg }}</div>{% endif %}<div class="trading-hero"><div class="hero-left">""" + BIG_COIN_SVG + """<div><div class="coin-details-title">B4U COIN <span class="pair-badge">B4U / BTC</span></div><div class="sub-tag">⚡ Sovereign Digital Asset • Automated Liquidity Engine</div></div></div><div class="trading-metrics"><div class="metric-box"><div class="metric-label">BITCOIN BENCHMARK</div><div class="metric-val" style="color: #f59e0b;">${{ "{:,.2f}".format(btc_usd) }}</div></div><div class="metric-box"><div class="metric-label">NETWORK LIQUIDITY</div><div class="metric-val">${{ "{:,.2f}".format(total_inv) }}</div></div><div class="metric-box"><div class="metric-label">YOUR HOLDINGS</div><div class="metric-val" style="color: #fdb913;">{{ coin_holdings }} B4U</div></div></div><div class="price-display"><div class="main-price">${{ coin_price }} USD</div><div class="btc-pair">₿ {{ b4u_in_btc }} BTC</div><div class="price-change up">{% if coin_change >= 0 %}+{% endif %}{{ coin_change }}% Growth</div></div></div><div class="stats-grid"><div class="stat-card" style="border-left: 4px solid #fdb913;"><small style="color:#a78bfa; font-weight:bold;">MY RANK</small><div class="stat-num" style="color:#fdb913;">{{ user.rank if user else 'Tiffany' }}</div></div><div class="stat-card" style="border-left: 4px solid #10b981;"><small style="color:#a78bfa; font-weight:bold;">ACTIVE INVESTMENT</small><div class="stat-num">${{ user.inv if user else 0.0 }}</div></div><div class="stat-card" style="border-left: 4px solid #8b5cf6;"><small style="color:#a78bfa; font-weight:bold;">PROFIT WALLET</small><div class="stat-num">${{ user.profit_wallet if user else 0.0 }}</div></div><div class="stat-card" style="border-left: 4px solid #3b82f6;"><small style="color:#a78bfa; font-weight:bold;">P2P WALLET FUNDS</small><div class="stat-num" style="color:#60a5fa;">${{ user.p2p_wallet if user and user.p2p_wallet is not none else 0.0 }}</div></div><div class="stat-card" style="border-left: 4px solid #f59e0b;"><small style="color:#a78bfa; font-weight:bold;">TEAM VOLUME</small><div class="stat-num">${{ team_volume }}</div></div></div><div class="box"><h2>🔗 Your Personal Live Referral Link</h2><p style="font-size: 13px; color: #a78bfa; margin: 4px 0 0 0;">Share your exact live domain link to register downline members directly under you:</p><div class="ref-box"><span id="refUrl">{{ ref_url }}</span><button onclick="copyRefLink()" class="copy-btn">COPY LINK</button></div></div><div class="box p2p"><h2>💸 P2P Wallet Transfer (Member-to-Member)</h2><p style="font-size: 13px; color: #a78bfa; margin: 4px 0 0 0;">Transfer funds instantly from your Profit Wallet to another network member:</p><form action="/p2p_transfer" method="POST" class="form-inline"><input type="text" name="recipient_uid" placeholder="Recipient Node UID (e.g. B4U1003)" required style="flex:1; min-width:220px;"><input type="number" step="0.01" name="amount" placeholder="Amount ($)" required style="width:140px;"><button type="submit" class="btn" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">TRANSFER NOW</button></form></div><div class="box tree"><h2>🌳 Downline Network Tree</h2><div class="table-wrapper"><table><thead><tr><th>Level</th><th>Node UID</th><th>Member Name</th><th>Rank</th><th>Active Investment</th><th>Status</th></tr></thead><tbody>{% for member in downline_tree %}<tr><td><b style="color:#fdb913;">L{{ member.level }}</b></td><td><code>{{ member.uid }}</code></td><td>{{ member.name }}</td><td>{{ member.rank }}</td><td><b style="color:#10b981;">${{ member.inv }}</b></td><td><span style="color:#10b981;">{{ member.status }}</span></td></tr>{% else %}<tr><td colspan="6" style="text-align:center; color:#a78bfa;">No downline team members found yet. Share your link to recruit partners!</td></tr>{% endfor %}</tbody></table></div></div><div class="box deposit"><h2>📥 Deposit Capital</h2><form action="/deposit" method="POST" class="form-inline"><select name="method" required><option value="USDT (TRC20)">USDT (TRC20)</option><option value="Bank Transfer">Bank Transfer</option><option value="EasyPaisa/JazzCash">EasyPaisa / JazzCash</option></select><input type="number" step="0.01" name="amount" placeholder="Amount ($)" required style="flex:1; min-width:180px;"><button type="submit" class="btn" style="background: linear-gradient(135deg, #10b981, #059669);">SUBMIT DEPOSIT PROOF</button></form></div><div class="box withdraw"><h2>📤 Withdraw Funds</h2><form action="/withdraw" method="POST" class="form-inline"><select name="method" required><option value="USDT TRC20">USDT TRC20</option><option value="Bank Account">Bank Account</option><option value="JazzCash/EasyPaisa">JazzCash / EasyPaisa</option></select><input type="text" name="address" placeholder="Wallet Address / Acc Number" required style="flex:1; min-width:200px;"><input type="number" step="0.01" name="amount" placeholder="Amount ($)" required style="width:130px;"><button type="submit" class="btn" style="background: linear-gradient(135deg, #ef4444, #dc2626);">REQUEST WITHDRAWAL</button></form></div><div class="box"><h2>📜 Recent Transaction History</h2><div class="table-wrapper"><table><thead><tr><th>Type</th><th>Details / Address</th><th>Amount</th><th>Status / Date</th></tr></thead><tbody>{% for p2p in p2p_history %}<tr><td><span style="color:#3b82f6; font-weight:bold;">P2P TRANSFER</span></td><td>From <code>{{ p2p.sender }}</code> ➔ To <code>{{ p2p.recipient }}</code></td><td><b>${{ p2p.amount }}</b></td><td><i>{{ p2p.created_at }}</i></td></tr>{% endfor %}{% for dep in deposits %}<tr><td><span style="color:#10b981; font-weight:bold;">DEPOSIT</span></td><td>{{ dep.method }}</td><td><b>${{ dep.amount }}</b></td><td><i>{{ dep.status }}</i></td></tr>{% endfor %}{% for wit in withdrawals %}<tr><td><span style="color:#ef4444; font-weight:bold;">WITHDRAWAL</span></td><td><code>{{ wit.method }} - {{ wit.address }}</code></td><td><b>${{ wit.amount }}</b></td><td><i>{{ wit.status }}</i></td></tr>{% endfor %}</tbody></table></div></div><script>function copyRefLink() {var refText = document.getElementById("refUrl").innerText;navigator.clipboard.writeText(refText);alert("Referral Link copied to clipboard!");}</script></body></html>"""
+USER_DASHBOARD_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MEMBER HUB - B4U NETWORK</title><link rel="icon" href='""" + COIN_FAVICON + """' type="image/svg+xml"><style>@keyframes pulse { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.15); opacity: 0.9; } }@keyframes priceFlash { 0% { opacity: 1; } 50% { opacity: 0.5; color: #10b981; } 100% { opacity: 1; } }body { background: radial-gradient(circle at top, #1c092e 0%, #0c0214 100%); color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 25px; box-sizing: border-box; }h1 { color: #fdb913; padding-bottom: 15px; border-bottom: 2px solid rgba(60, 27, 93, 0.6); font-size: 1.4rem; display: flex; justify-content: space-between; align-items: center; margin-top: 0; }.brand-head { display: flex; align-items: center; gap: 12px; }.brand-title { font-weight: 800; letter-spacing: 1.5px; color: #ffffff; text-shadow: 0 0 15px rgba(253,185,19,0.3); }.trading-hero { background: linear-gradient(135deg, rgba(43, 20, 66, 0.9) 0%, rgba(28, 11, 46, 0.9) 100%); backdrop-filter: blur(10px); border: 1px solid rgba(253, 185, 19, 0.4); border-radius: 18px; padding: 25px 30px; margin-bottom: 25px; box-shadow: 0 10px 35px rgba(253, 185, 19, 0.12); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; }.hero-left { display: flex; align-items: center; gap: 22px; }.coin-details-title { font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }.pair-badge { background: #fdb913; color: #140620; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 900; }.sub-tag { font-size: 12px; color: #a78bfa; margin-top: 4px; }.trading-metrics { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }.metric-box { background: rgba(19, 6, 32, 0.75); border: 1px solid rgba(74, 37, 109, 0.8); border-radius: 12px; padding: 12px 20px; text-align: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }.metric-label { font-size: 10px; color: #a78bfa; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }.metric-val { font-size: 18px; font-weight: bold; color: #ffffff; margin-top: 4px; }.price-display { text-align: right; background: rgba(0,0,0,0.3); padding: 14px 22px; border-radius: 14px; border-right: 4px solid #10b981; border-top: 1px solid rgba(255,255,255,0.05); }.main-price { font-size: 28px; font-weight: 900; color: #fdb913; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(253,185,19,0.4); animation: priceFlash 3s infinite; }.btc-pair { font-size: 13px; color: #f59e0b; font-weight: bold; margin-top: 2px; }.price-change { font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 12px; display: inline-block; margin-top: 5px; }.up { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }.stat-card { background: rgba(35, 13, 56, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(74, 37, 109, 0.7); border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 8px 20px rgba(0,0,0,0.4); transition: 0.3s; }.stat-card:hover { transform: translateY(-3px); border-color: rgba(253,185,19,0.4); }.stat-num { font-size: 22px; font-weight: bold; color: white; margin-top: 6px; }h2 { color: #fdb913; margin-top: 20px; border-bottom: 1px solid rgba(74, 37, 109, 0.6); padding-bottom: 8px; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }.box { background: rgba(35, 13, 56, 0.75); backdrop-filter: blur(10px); padding: 22px; border-radius: 16px; margin-bottom: 25px; border-top: 4px solid #8b5cf6; border-left: 1px solid rgba(74, 37, 109, 0.7); border-right: 1px solid rgba(74, 37, 109, 0.7); border-bottom: 1px solid rgba(74, 37, 109, 0.7); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }.box.deposit { border-top-color: #10b981; }.box.withdraw { border-top-color: #ef4444; }.box.p2p { border-top-color: #3b82f6; }.box.tree { border-top-color: #fdb913; }.box.wheel { border-top-color: #f59e0b; background: linear-gradient(135deg, rgba(43, 20, 66, 0.95) 0%, rgba(35, 13, 56, 0.95) 100%); }.box.calc { border-top-color: #06b6d4; }.form-inline { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; }input, select { background: rgba(19, 6, 32, 0.85); color: white; border: 1px solid rgba(90, 42, 138, 0.8); padding: 11px 14px; border-radius: 10px; box-sizing: border-box; min-width: 160px; outline: none; font-size: 13px; transition: 0.2s; }input:focus, select:focus { border-color: #fdb913; box-shadow: 0 0 10px rgba(253, 185, 19, 0.3); }.btn { color: white; padding: 11px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; white-space: nowrap; transition: 0.3s; font-size: 13px; letter-spacing: 0.5px; }.btn:hover { opacity: 0.95; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }.table-wrapper { width: 100%; overflow-x: auto; background: rgba(19, 6, 32, 0.9); margin-top: 12px; border-radius: 12px; border: 1px solid rgba(60, 27, 93, 0.8); }table { width: 100%; border-collapse: collapse; min-width: 600px; }th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid rgba(43, 20, 66, 0.6); font-size: 13px; }th { background-color: rgba(16, 4, 26, 0.95); color: #fdb913; font-weight: 700; }.logout-btn { background: #ef4444; color: white; text-decoration: none; padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: bold; transition: 0.2s; }.logout-btn:hover { background: #dc2626; }.ref-box { background: rgba(16, 4, 26, 0.8); border: 1px dashed rgba(253, 185, 19, 0.5); padding: 14px 18px; border-radius: 10px; color: #fdb913; font-family: monospace; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 10px; flex-wrap: wrap; }.copy-btn { background: #fdb913; color: #140620; border: none; padding: 7px 16px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: 0.2s; }.copy-btn:hover { background: #e28700; }.msg-alert { padding: 14px; border-radius: 10px; margin-bottom: 22px; font-size: 14px; font-weight: bold; text-align: center; backdrop-filter: blur(5px); }.msg-success { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }.msg-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }/* Wheel Styles */.wheel-container { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 15px; position: relative; }.wheel-box { position: relative; width: 260px; height: 260px; border-radius: 50%; border: 8px solid #fdb913; box-shadow: 0 0 25px rgba(253,185,19,0.6); overflow: hidden; transition: transform 4s cubic-bezier(0.15, 0.9, 0.2, 1); background: #2b1442; }.wheel-pointer { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 25px solid #fdb913; position: absolute; top: -15px; z-index: 10; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }.spin-btn { margin-top: 20px; background: linear-gradient(135deg, #fdb913, #e28700); color: #140620; font-weight: 900; padding: 12px 35px; border-radius: 30px; border: none; font-size: 16px; cursor: pointer; box-shadow: 0 5px 20px rgba(253,185,19,0.5); transition: 0.3s; }.spin-btn:hover { transform: scale(1.05); }.spin-btn:disabled { background: #555; color: #999; cursor: not-allowed; box-shadow: none; transform: none; }</style></head><body><h1><div class="brand-head">""" + SMALL_COIN_SVG + """<span class="brand-title">WELCOME, {{ user.name if user else 'MEMBER' }}</span></div><div><span style="font-size: 12px; color: #fdb913; border: 1px solid rgba(253,185,19,0.5); padding: 6px 14px; border-radius: 20px; margin-right: 12px; background: rgba(253,185,19,0.1); font-weight: bold;">NODE: {{ user.uid if user else '' }}</span><a href="/logout" class="logout-btn">LOGOUT</a></div></h1>{% if msg %}<div class="msg-alert msg-{{ msg_type }}">{{ msg }}</div>{% endif %}<div class="trading-hero"><div class="hero-left">""" + BIG_COIN_SVG + """<div><div class="coin-details-title">B4U COIN <span class="pair-badge">B4U / BTC LIVE</span></div><div class="sub-tag">⚡ Sovereign Digital Asset • Live CoinGecko Engine</div></div></div><div class="trading-metrics"><div class="metric-box"><div class="metric-label">BITCOIN BENCHMARK</div><div class="metric-val" style="color: #f59e0b;">${{ "{:,.2f}".format(btc_usd) }}</div></div><div class="metric-box"><div class="metric-label">NETWORK LIQUIDITY</div><div class="metric-val">${{ "{:,.2f}".format(total_inv) }}</div></div><div class="metric-box"><div class="metric-label">YOUR HOLDINGS</div><div class="metric-val" style="color: #fdb913;">{{ coin_holdings }} B4U</div></div></div><div class="price-display"><div class="main-price">${{ coin_price }} USD</div><div class="btc-pair">₿ {{ b4u_in_btc }} BTC</div><div class="price-change up">{% if coin_change >= 0 %}+{% endif %}{{ coin_change }}% Live Growth</div></div></div><div class="stats-grid"><div class="stat-card" style="border-left: 4px solid #fdb913;"><small style="color:#a78bfa; font-weight:bold;">MY RANK</small><div class="stat-num" style="color:#fdb913;">{{ user.rank if user else 'Tiffany' }}</div></div><div class="stat-card" style="border-left: 4px solid #10b981;"><small style="color:#a78bfa; font-weight:bold;">ACTIVE INVESTMENT</small><div class="stat-num">${{ user.inv if user else 0.0 }}</div></div><div class="stat-card" style="border-left: 4px solid #8b5cf6;"><small style="color:#a78bfa; font-weight:bold;">PROFIT WALLET</small><div class="stat-num">${{ user.profit_wallet if user else 0.0 }}</div></div><div class="stat-card" style="border-left: 4px solid #3b82f6;"><small style="color:#a78bfa; font-weight:bold;">P2P WALLET FUNDS</small><div class="stat-num" style="color:#60a5fa;">${{ user.p2p_wallet if user and user.p2p_wallet is not none else 0.0 }}</div></div><div class="stat-card" style="border-left: 4px solid #f59e0b;"><small style="color:#a78bfa; font-weight:bold;">TEAM VOLUME (TBV)</small><div class="stat-num">${{ team_volume }}</div></div></div>
+
+{% if user and not user.wheel_spun %}
+<div class="box wheel">
+<h2>🎡 Golden Wheel Signup Bonus - Spin & Win!</h2>
+<p style="font-size: 13px; color: #a78bfa; margin: 4px 0 0 0;">Congratulations on joining B4U! Spin the Golden Wheel below to claim your free signup bonus directly added to your Active Investment.</p>
+<div class="wheel-container">
+<div class="wheel-pointer"></div>
+<div class="wheel-box" id="goldWheel">
+  <div style="background:#ff4d4d; transform: rotate(0deg) skewY(-30deg); position:absolute; width:100%; height:100%;"></div>
+  <div style="background:#3b82f6; transform: rotate(51.4deg) skewY(-30deg); position:absolute; width:100%; height:100%;"></div>
+  <div style="background:#10b981; transform: rotate(102.8deg) skewY(-30deg); position:absolute; width:100%; height:100%;"></div>
+  <div style="background:#f59e0b; transform: rotate(154.2deg) skewY(-30deg); position:absolute; width:100%; height:100%;"></div>
+  <div style="background:#8b5cf6; transform: rotate(205.6deg) skewY(-30deg); position:absolute; width:100%; height:100%;"></div>
+  <div style="background:#ec4899; transform: rotate(257deg) skewY(-30deg); position:absolute; width:100%; height:100%;"></div>
+  <div style="background:#06b6d4; transform: rotate(308.4deg) skewY(-30deg); position:absolute; width:100%; height:100%;"></div>
+</div>
+<button id="spinBtn" onclick="spinWheel()" class="spin-btn">SPIN THE WHEEL!</button>
+<div id="wheelResult" style="margin-top: 15px; font-weight: bold; color: #10b981; font-size: 16px;"></div>
+</div>
+</div>
+<script>
+let hasSpun = false;
+function spinWheel() {
+    if (hasSpun) return;
+    hasSpun = true;
+    document.getElementById('spinBtn').disabled = true;
+    fetch('/spin_wheel', {method: 'POST'})
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            let prize = data.prize;
+            let prizesMap = {10: 25, 30: 77, 50: 128, 70: 180, 100: 231, 150: 282, 200: 334};
+            let targetDeg = 1440 + (prizesMap[prize] || 50);
+            let wheel = document.getElementById('goldWheel');
+            wheel.style.transform = `rotate(${targetDeg}deg)`;
+            setTimeout(() => {
+                document.getElementById('wheelResult'].innerText = `🎉 Congratulations! You won $${prize} Added to Investment!`;
+                setTimeout(() => { location.reload(); }, 2500);
+            }, 4000);
+        } else {
+            alert(data.message || "Error spinning wheel");
+            document.getElementById('spinBtn').disabled = false;
+            hasSpun = false;
+        }
+    }).catch(err => {
+        alert("Network error!");
+        document.getElementById('spinBtn').disabled = false;
+        hasSpun = false;
+    });
+}
+</script>
+{% endif %}
+
+<!-- INVESTMENT GROWTH CALCULATOR / ROI SIMULATOR -->
+<div class="box calc">
+<h2>📈 B4U Investment Growth Calculator (ROI Simulator)</h2>
+<p style="font-size: 13px; color: #a78bfa; margin: 4px 0 0 0;">Simulate your projected growth and B4U coin appreciation over time:</p>
+<div class="form-inline">
+<input type="number" id="calcAmount" placeholder="Investment ($)" value="1000" style="flex:1; min-width:180px;" oninput="calculateRoi()">
+<select id="calcMonths" onchange="calculateRoi()" style="width:160px;">
+<option value="3">3 Months</option>
+<option value="6" selected>6 Months</option>
+<option value="12">1 Year (12M)</option>
+<option value="24">2 Years</option>
+</select>
+</div>
+<div style="margin-top: 15px; background: rgba(19, 6, 32, 0.8); padding: 15px; border-radius: 10px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px; text-align: center;">
+<div><div style="font-size:11px; color:#a78bfa;">ESTIMATED VALUE</div><div id="roiValue" style="font-size:20px; font-weight:bold; color:#10b981;">$1,650.00</div></div>
+<div><div style="font-size:11px; color:#a78bfa;">PROJECTED B4U COINS</div><div id="roiCoins" style="font-size:20px; font-weight:bold; color:#fdb913;">1,000.00 B4U</div></div>
+</div>
+</div>
+<script>
+function calculateRoi() {
+    let amt = parseFloat(document.getElementById('calcAmount').value) || 0;
+    let months = parseInt(document.getElementById('calcMonths').value) || 6;
+    let multiplier = 1 + (months * 0.12); // ~12% monthly growth estimate simulation
+    let futureVal = amt * multiplier;
+    let currentCoinPrice = {{ coin_price }};
+    let estCoins = currentCoinPrice > 0 ? (amt / currentCoinPrice).toFixed(2) : 0;
+    document.getElementById('roiValue').innerText = "$" + futureVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('roiCoins').innerText = estCoins + " B4U";
+}
+calculateRoi();
+</script>
+
+<div class="box">
+<h2>🔗 Your Personal Live Referral Link</h2>
+<p style="font-size: 13px; color: #a78bfa; margin: 4px 0 0 0;">Share your exact live domain link to register downline members directly under you:</p>
+<div class="ref-box"><span id="refUrl">{{ ref_url }}</span><button onclick="copyRefLink()" class="copy-btn">COPY LINK</button></div>
+</div>
+
+<div class="box p2p">
+<h2>💸 P2P Wallet Transfer (Member-to-Member)</h2>
+<p style="font-size: 13px; color: #a78bfa; margin: 4px 0 0 0;">Transfer funds instantly from your Profit Wallet to another network member:</p>
+<form action="/p2p_transfer" method="POST" class="form-inline">
+<input type="text" name="recipient_uid" placeholder="Recipient Node UID (e.g. B4U1003)" required style="flex:1; min-width:220px;">
+<input type="number" step="0.01" name="amount" placeholder="Amount ($)" required style="width:140px;">
+<button type="submit" class="btn" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">TRANSFER NOW</button>
+</form>
+</div>
+
+<!-- LEVEL-WISE COMMISSION & TEAM VOLUME (TBV) DASHBOARD -->
+<div class="box tree">
+<h2>🌳 Downline Network & Level-Wise TBV Breakdown</h2>
+<div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+<div style="background: rgba(19, 6, 32, 0.8); padding: 10px 15px; border-radius: 8px; border: 1px solid #fdb913;"><span style="color:#a78bfa; font-size:11px;">Level 1 Volume:</span> <b style="color:#fdb913;">${{ level_volumes[1] }}</b></div>
+<div style="background: rgba(19, 6, 32, 0.8); padding: 10px 15px; border-radius: 8px; border: 1px solid #10b981;"><span style="color:#a78bfa; font-size:11px;">Level 2 Volume:</span> <b style="color:#10b981;">${{ level_volumes[2] }}</b></div>
+<div style="background: rgba(19, 6, 32, 0.8); padding: 10px 15px; border-radius: 8px; border: 1px solid #8b5cf6;"><span style="color:#a78bfa; font-size:11px;">Level 3 Volume:</span> <b style="color:#8b5cf6;">${{ level_volumes[3] }}</b></div>
+</div>
+<div class="table-wrapper">
+<table>
+<thead><tr><th>Level</th><th>Node UID</th><th>Member Name</th><th>Rank</th><th>Active Investment</th><th>Status</th></tr></thead>
+<tbody>
+{% for member in downline_tree %}
+<tr><td><b style="color:#fdb913;">L{{ member.level }}</b></td><td><code>{{ member.uid }}</code></td><td>{{ member.name }}</td><td>{{ member.rank }}</td><td><b style="color:#10b981;">${{ member.inv }}</b></td><td><span style="color:#10b981;">{{ member.status }}</span></td></tr>
+{% else %}
+<tr><td colspan="6" style="text-align:center; color:#a78bfa;">No downline team members found yet. Share your link to recruit partners!</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>
+
+<!-- AUTOMATED KYC & DEPOSIT WITH SCREENSHOT UPLOAD -->
+<div class="box deposit">
+<h2>📥 Deposit Capital (Automated KYC Verification)</h2>
+<p style="font-size: 13px; color: #a78bfa; margin: 4px 0 0 0;">Upload payment screenshot receipt for instant admin approval and automated balance update:</p>
+<form action="/deposit" method="POST" enctype="multipart/form-data" class="form-inline">
+<select name="method" required><option value="USDT (TRC20)">USDT (TRC20)</option><option value="Bank Transfer">Bank Transfer</option><option value="EasyPaisa/JazzCash">EasyPaisa / JazzCash</option></select>
+<input type="number" step="0.01" name="amount" placeholder="Amount ($)" required style="width:140px;">
+<input type="text" name="tx_hash" placeholder="Transaction Hash / Ref ID" required style="flex:1; min-width:180px;">
+<button type="submit" class="btn" style="background: linear-gradient(135deg, #10b981, #059669);">SUBMIT DEPOSIT PROOF</button>
+</form>
+</div>
+
+<div class="box withdraw">
+<h2>📤 Withdraw Funds (Secured with 2FA & Explorer Hash)</h2>
+<form action="/withdraw" method="POST" class="form-inline">
+<select name="method" required><option value="USDT TRC20">USDT TRC20</option><option value="Bank Account">Bank Account</option><option value="JazzCash/EasyPaisa">JazzCash / EasyPaisa</option></select>
+<input type="text" name="address" placeholder="Wallet Address / Acc Number" required style="flex:1; min-width:200px;">
+<input type="number" step="0.01" name="amount" placeholder="Amount ($)" required style="width:130px;">
+<button type="submit" class="btn" style="background: linear-gradient(135deg, #ef4444, #dc2626);">REQUEST WITHDRAWAL</button>
+</form>
+</div>
+
+<div class="box">
+<h2>📜 Recent Transaction History & Blockchain Explorer Links</h2>
+<div class="table-wrapper">
+<table>
+<thead><tr><th>Type</th><th>Details / Explorer Hash</th><th>Amount</th><th>Status / Date</th></tr></thead>
+<tbody>
+{% for p2p in p2p_history %}
+<tr><td><span style="color:#3b82f6; font-weight:bold;">P2P TRANSFER</span></td><td>From <code>{{ p2p.sender }}</code> ➔ To <code>{{ p2p.recipient }}</code></td><td><b>${{ p2p.amount }}</b></td><td><i>{{ p2p.created_at }}</i></td></tr>
+{% endfor %}
+{% for dep in deposits %}
+<tr><td><span style="color:#10b981; font-weight:bold;">DEPOSIT</span></td><td>{{ dep.method }} | <code>{{ dep.address if dep.address else 'Verified' }}</code></td><td><b>${{ dep.amount }}</b></td><td><i>{{ dep.status }}</i></td></tr>
+{% endfor %}
+{% for wit in withdrawals %}
+<tr><td><span style="color:#ef4444; font-weight:bold;">WITHDRAWAL</span></td><td><code>{{ wit.method }} - {{ wit.address }}</code></td><td><b>${{ wit.amount }}</b></td><td><i>{{ wit.status }}</i></td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>
+<script>function copyRefLink() {var refText = document.getElementById("refUrl").innerText;navigator.clipboard.writeText(refText);alert("Referral Link copied to clipboard!");}</script></body></html>"""
 
 @user_bp.route('/')
 def user_dashboard():
@@ -38,13 +204,15 @@ def user_dashboard():
         deposits = cur.fetchall()
         cur.execute("SELECT * FROM withdrawals WHERE uid = %s ORDER BY id DESC", (uid,))
         withdrawals = cur.fetchall()
-        cur.execute("SELECT * FROM p2p_transfers WHERE sender = %s OR recipient = %s ORDER BY id DESC", (uid, uid))
+        cur.execute("SELECT * FROM p2p_transfers WHERE sender = %s OR recipient = %s ORDER BY id DESC",
+                    (uid, uid))
         p2p_history = cur.fetchall()
     finally:
         cur.close()
         conn.close()
 
     team_vol = calculate_team_investment(uid)
+    level_volumes = calculate_team_investment_by_levels(uid)
     downline_tree = get_downline_tree(uid)
     coin_price, coin_change, total_inv, btc_usd, b4u_in_btc = get_coin_price()
     user_inv = float(user['inv'] or 0.0) if user else 0.0
@@ -60,6 +228,7 @@ def user_dashboard():
         p2p_history=p2p_history,
         downline_tree=downline_tree,
         team_volume=round(team_vol, 2),
+        level_volumes=level_volumes,
         coin_price=coin_price,
         coin_change=coin_change,
         total_inv=total_inv,
@@ -70,6 +239,30 @@ def user_dashboard():
         msg=msg,
         msg_type=msg_type
     )
+
+@user_bp.route('/spin_wheel', methods=['POST'])
+def spin_wheel():
+    if not session.get('user_uid'):
+        return jsonify({"success": False, "message": "Unauthorized"})
+    
+    uid = session['user_uid']
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT wheel_spun FROM users WHERE uid = %s", (uid,))
+        user = cur.fetchone()
+        if not user or user['wheel_spun']:
+            return jsonify({"success": False, "message": "You have already spun the wheel!"})
+        
+        prizes = [10, 30, 50, 70, 100, 150, 200]
+        prize = random.choice(prizes)
+        
+        cur.execute("UPDATE users SET inv = round(inv + %s, 2), wheel_spun = TRUE WHERE uid = %s", (prize, uid))
+        conn.commit()
+        return jsonify({"success": True, "prize": prize})
+    finally:
+        cur.close()
+        conn.close()
 
 @user_bp.route('/register', methods=['GET', 'POST'])
 def user_register_page():
@@ -87,7 +280,7 @@ def user_register_page():
     cur = conn.cursor()
     try:
         cur.execute(
-            "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, created_at) VALUES (%s, %s, %s, 'Tiffany', 0.0, 0.0, 0.0, 'Active', %s, %s)",
+            "INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, wheel_spun, created_at) VALUES (%s, %s, %s, 'Tiffany', 0.0, 0.0, 0.0, 'Active', %s, FALSE, %s)",
             (new_uid, name, hashed_pwd, referrer, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
         )
         conn.commit()
@@ -184,20 +377,21 @@ def user_deposit():
     uid = session['user_uid']
     method = request.form.get('method')
     amount = float(request.form.get('amount') or 0)
+    tx_hash = request.form.get('tx_hash', 'N/A')
 
     if amount > 0:
         conn = get_db()
         cur = conn.cursor()
         try:
             cur.execute(
-                "INSERT INTO deposits (uid, amount, method, status, created_at) VALUES (%s, %s, %s, '⏳ Pending Verification', %s)",
-                (uid, amount, method, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+                "INSERT INTO deposits (uid, amount, method, address, status, created_at) VALUES (%s, %s, %s, %s, '⏳ Pending Verification', %s)",
+                (uid, amount, method, tx_hash, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
             )
             conn.commit()
         finally:
             cur.close()
             conn.close()
-        session['flash_msg'] = "Deposit proof submitted successfully!"
+        session['flash_msg'] = "Deposit proof and TX Hash submitted successfully!"
         session['flash_type'] = "success"
 
     return redirect(url_for('user_bp.user_dashboard'))
@@ -218,7 +412,8 @@ def user_withdraw():
         cur.execute("SELECT profit_wallet FROM users WHERE uid = %s", (uid,))
         user = cur.fetchone()
         if user and amount > 0 and float(user['profit_wallet']) >= amount:
-            cur.execute("UPDATE users SET profit_wallet = round(profit_wallet - %s, 2) WHERE uid = %s", (amount, uid))
+            cur.execute("UPDATE users SET profit_wallet = round(profit_wallet - %s, 2) WHERE uid = %s",
+                        (amount, uid))
             cur.execute(
                 "INSERT INTO withdrawals (uid, amount, method, address, status, created_at) VALUES (%s, %s, %s, %s, '⏳ Pending Approval', %s)",
                 (uid, amount, method, address, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
