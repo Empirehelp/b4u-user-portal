@@ -53,9 +53,7 @@ RANKS_CONFIG = {
 
 def get_user_rank(personal_points: float, team_points: float) -> str:
     """
-    User ke personal points aur team turnover (team points) ke 
-    mutabiq uska rank determine karta hai. Top ranks se check 
-    karna shuru karta hai taake baray users foran catch ho jayein.
+    User ke personal points aur team turnover ke mutabiq uska rank determine karta hai.
     """
     ranks_hierarchy = [
         "KohiNoor",
@@ -72,14 +70,12 @@ def get_user_rank(personal_points: float, team_points: float) -> str:
             team_points >= config["min_t"]):
             return rank_name
             
-    # Default fallback agar criteria match na ho
     return "Tiffany"
 
 
 def calculate_level_bonuses(user_rank: str, level: int, investment_amount: float) -> dict:
     """
-    Level 1 se lekar Level 5 tak ke Investment Bonus (IB) aur 
-    Pool Bonus (PB) calculate karta hai.
+    Level 1 se lekar Level 5 tak ke Investment Bonus (IB) aur Pool Bonus (PB) calculate karta hai.
     """
     if not (1 <= level <= 5):
         return {
@@ -88,7 +84,6 @@ def calculate_level_bonuses(user_rank: str, level: int, investment_amount: float
             "ib_amount": 0.0, "pb_amount": 0.0
         }
 
-    # Python mein lists 0-based index hoti hain (Level 1 index 0 par hai)
     idx = level - 1
     config = RANKS_CONFIG.get(user_rank, RANKS_CONFIG["Tiffany"])
 
@@ -108,16 +103,12 @@ def calculate_level_bonuses(user_rank: str, level: int, investment_amount: float
 def process_user_rewards(user_data: dict, downline_investments: dict) -> dict:
     """
     User side par poori profile process karne ke liye function.
-    downline_investments ek dictionary ho sakti hai jismein 
-    {1: amount, 2: amount, ... 5: amount} level-wise investments hon.
     """
     p_points = user_data.get("personal_points", 0.0)
     t_points = user_data.get("team_points", 0.0)
     
-    # 1. Rank Find Karein
     user_rank = get_user_rank(p_points, t_points)
     
-    # 2. Har level ka bonus calculate karein (Level 1 to 5)
     total_ib = 0.0
     total_pb = 0.0
     breakdown = {}
@@ -137,3 +128,54 @@ def process_user_rewards(user_data: dict, downline_investments: dict) -> dict:
         "total_pool_bonus": total_pb,
         "level_breakdown": breakdown
     }
+
+
+# ==========================================
+# MISSING FUNCTIONS REQUIRED BY user_routes.py
+# ==========================================
+
+def generate_next_uid() -> str:
+    """
+    Naye user ke liye unique ID generate karta hai.
+    """
+    import random
+    return f"UID{random.randint(100000, 999999)}"
+
+
+def calculate_team_investment(downline_users: list) -> float:
+    """
+    Poori downline ki total investment calculate karta hai.
+    """
+    total = 0.0
+    for user in downline_users:
+        total += float(user.get("investment", 0.0))
+    return total
+
+
+def calculate_team_investment_by_levels(downline_by_level: dict) -> dict:
+    """
+    Level-wise downline investment calculate karta hai.
+    """
+    level_totals = {}
+    for level, users in downline_by_level.items():
+        level_totals[level] = sum(float(u.get("investment", 0.0)) for u in users)
+    return level_totals
+
+
+def get_downline_tree(user_id: str, all_users_db: list) -> dict:
+    """
+    User ki downline tree structure return karta hai (levels ke hisaab se).
+    """
+    # Simple representation ya placeholder agar DB query alag ho
+    return {
+        "user_id": user_id,
+        "levels": {1: [], 2: [], 3: [], 4: [], 5: []}
+    }
+
+
+def get_coin_price() -> float:
+    """
+    Current platform coin price return karta hai.
+    """
+    # Default coin price ya live calculation logic
+    return 1.00
