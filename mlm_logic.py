@@ -131,7 +131,7 @@ def process_user_rewards(user_data: dict, downline_investments: dict) -> dict:
 
 
 # ==========================================
-# HELPER FUNCTIONS (Safe Type Handling)
+# DATABASE & HELPER FUNCTIONS
 # ==========================================
 
 def generate_next_uid() -> str:
@@ -142,25 +142,43 @@ def generate_next_uid() -> str:
     return f"UID{random.randint(100000, 999999)}"
 
 
-def calculate_team_investment(downline_users) -> float:
+def calculate_team_investment(downline_input) -> float:
     """
-    Poori downline ki total investment calculate karta hai.
-    Yeh safely check karta hai ke item dictionary hai ya string (UID).
+    Team ki total investment calculate karta hai. 
+    Agar UID (string) pass ho, toh referrer relationship ke mutabiq database se sum kar sakta hai,
+    ya agar list/dict pass ho toh usay safely process karta hai.
     """
     total = 0.0
-    if not downline_users:
+    if not downline_input:
         return total
         
-    for user in downline_users:
-        if isinstance(user, dict):
-            total += float(user.get("investment", 0.0))
-        elif isinstance(user, (int, float)):
-            total += float(user)
-        # Agar string (UID) ho ya kuch aur, toh crash nahi karega
+    # Agar direct UID string pass ho jaye
+    if isinstance(downline_input, str):
+        try:
+            # Agar global scope mein supabase client available ho
+            from app import supabase
+            # 'referrer' column mein is uid walay users ki inv ka sum nikalna
+            res = supabase.table("users").select("inv").eq("referrer", downline_input).execute()
+            if res.data:
+                for row in res.data:
+                    total += float(row.get("inv", 0.0) or 0.0)
+        except Exception:
+            pass
+        return total
+
+    if isinstance(downline_input, list):
+        for user in downline_input:
+            if isinstance(user, dict):
+                total += float(user.get("inv", user.get("investment", 0.0)) or 0.0)
+            elif isinstance(user, (int, float)):
+                total += float(user)
+    elif isinstance(downline_input, dict):
+        total += float(downline_input.get("inv", downline_input.get("investment", 0.0)) or 0.0)
+        
     return total
 
 
-def calculate_team_investment_by_levels(downline_by_level: dict) -> dict:
+def calculate_team_investment_by_levels(downline_by_level) -> dict:
     """
     Level-wise downline investment calculate karta hai.
     """
@@ -168,18 +186,55 @@ def calculate_team_investment_by_levels(downline_by_level: dict) -> dict:
     if not downline_by_level:
         return level_totals
         
-    for level, users in downline_by_level.items():
-        level_totals[level] = calculate_team_investment(users)
+    if isinstance(downline_by_level, dict):
+        for level, users in downline_by_level.items():
+            level_totals[level] = calculate_team_investment(users)
+            
     return level_totals
 
 
-def get_downline_tree(user_id: str, all_users_db: list) -> dict:
+def get_downline_tree(user_id: str, all_users_db: list = None) -> dict:
     """
-    User ki downline tree structure return karta hai.
+    User ki downline tree structure return karta hai (Level 1 se 5 tak).
     """
+    levels_dict = {1: [], 2: [], 3: [], 4: [], 5: []}
+    try:
+        from app import supabase
+        # Level 1 fetch karein jahan referrer = user_id ho
+        l1_res = supabase.table("users").select("*").eq("referrer", user_id).execute()
+        l1_users = l1_res.data if l1_res and l1_res.data else []
+        levels_dict[1] = l1_users
+        
+        # Level 2 (agar zaroorat ho toh l1 users ke uids par query chala sakte hain)
+        l1_uids = [u.get("uid") for u in l1_users if u.get("uid")]
+        if l1_uids:
+            l2_res = supabase.table("users").select("*").in_("referrer", l1_uids).execute()
+            l2_users = l2_res.data if l2_res and l2_res.data else []
+            levels_dict[2] = l2_users
+            
+            l2_uids = [u.get("uid") for u in l2_users if u.get("uid")]
+            if l2_uids:
+                l3_res = supabase.table("users").select("*").in_("referrer", l2_uids).execute()
+                l3_users = l3_res.data if l3_res and l3_res.data else []
+                levels_dict[3] = l3_users
+                
+                l3_uids = [u.get("uid") for u in l3_users if u.get("uid")]
+                if l3_uids:
+                    l4_res = supabase.table("users").select("*").in_("referrer", l3_uids).execute()
+                    l4_users = l4_res.data if l4_res and l4_res.data else []
+                    levels_dict[4] = l4_users
+                    
+                    l4_uids = [u.get("uid") for u in l4_users if u.get("uid")]
+                    if l4_uids:
+                        l5_res = supabase.table("users").select("*").in_("referrer", l4_uids).execute()
+                        l5_users = l5_res.data if l5_res and l5_res.data else []
+                        levels_dict[5] = l5_users
+    except Exception:
+        pass
+
     return {
         "user_id": user_id,
-        "levels": {1: [], 2: [], 3: [], 4: [], 5: []}
+        "levels": levels_dict
     }
 
 
