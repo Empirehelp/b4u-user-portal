@@ -1,6 +1,7 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from werkzeug.security import generate_password_hash
 
 DATABASE_URL = os.environ.get('DATABASE_URL', "postgresql://postgres:postgres@localhost:5432/b4u_db")
 
@@ -49,11 +50,21 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        
+        # Insert Default Admin if not exists
+        cur.execute("SELECT * FROM users WHERE email = 'admin@b4u.com'")
+        if not cur.fetchone():
+            admin_pwd = generate_password_hash('admin123')
+            cur.execute("""
+                INSERT INTO users (uid, name, email, password, rank, status) 
+                VALUES ('B4U1000', 'Admin', 'admin@b4u.com', %s, 'Admin', 'Active')
+            """, (admin_pwd,))
+            
         conn.commit()
-        print("[INFO] Database tables initialized successfully.")
+        print("[INFO] Database initialized & Admin created successfully.")
     except Exception as e:
         conn.rollback()
-        print(f"[ERROR] Error initializing database: {e}")
+        print(f"[ERROR] Database init error: {e}")
     finally:
         cur.close()
         conn.close()

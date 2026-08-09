@@ -40,10 +40,11 @@ LOGIN_HTML = """<!DOCTYPE html>
         <div class="msg">{{ msg }}</div>
         {% endif %}
         <form method="POST">
-            <input type="text" name="username" placeholder="Email or UID (e.g. B4U1001)" required>
+            <input type="text" name="username" placeholder="Email or UID (e.g. B4U1000)" required>
             <input type="password" name="password" placeholder="Password" required>
             <button type="submit" class="btn">LOGIN</button>
         </form>
+        <p style="font-size:11px; color:#10b981; margin-top:10px;">Default Admin: admin@b4u.com / admin123</p>
         <p>Don't have an account? <a href="/register">Register here</a></p>
     </div>
 </body>
@@ -94,23 +95,24 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        conn = get_db()
-        cur = conn.cursor()
         try:
+            conn = get_db()
+            cur = conn.cursor()
             cur.execute("SELECT * FROM users WHERE email = %s OR uid = %s", (username, username))
             user = cur.fetchone()
-        finally:
             cur.close()
             conn.close()
             
-        if user and verify_pwd(user['password'], password):
-            session['uid'] = user['uid']
-            session['name'] = user['name']
-            if user['email'] == 'admin@b4u.com':
-                return redirect('/admin')
-            return redirect('/dashboard')
-        else:
-            msg = "Invalid email/UID or password!"
+            if user and verify_pwd(user['password'], password):
+                session['uid'] = user['uid']
+                session['name'] = user['name']
+                if user['email'] == 'admin@b4u.com' or user['rank'] == 'Admin':
+                    return redirect('/admin')
+                return redirect('/dashboard')
+            else:
+                msg = "Invalid email/UID or password!"
+        except Exception as e:
+            msg = f"System Error: {str(e)}"
             
     return render_template_string(LOGIN_HTML, msg=msg)
 
@@ -125,19 +127,17 @@ def register():
         sponsor_uid = request.form.get('sponsor_uid') or 'None'
         uid = generate_uid()
         
-        conn = get_db()
-        cur = conn.cursor()
         try:
+            conn = get_db()
+            cur = conn.cursor()
             cur.execute("INSERT INTO users (uid, name, email, password, sponsor_uid) VALUES (%s, %s, %s, %s, %s)",
                         (uid, name, email, password, sponsor_uid))
             conn.commit()
-            return redirect('/login')
-        except Exception as e:
-            conn.rollback()
-            msg = f"Registration error: {str(e)}"
-        finally:
             cur.close()
             conn.close()
+            return redirect('/login')
+        except Exception as e:
+            msg = f"Registration error: {str(e)}"
             
     return render_template_string(REGISTER_HTML, msg=msg, sponsor_ref=sponsor_ref)
 
