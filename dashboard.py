@@ -26,7 +26,7 @@ def dashboard():
 
     if not user:
         return redirect(url_for('auth_bp.logout'))
-        
+
     btc_price = get_coin_price("bitcoin")
     eth_price = get_coin_price("ethereum")
     return render_template_string(DASHBOARD_HTML, user=user, tree=tree, btc_price=btc_price, eth_price=eth_price, msg=msg)
@@ -41,7 +41,7 @@ def p2p_transfer():
         amount = float(request.form.get('amount'))
     except:
         return redirect(url_for('dash_bp.dashboard', msg="Invalid amount!"))
-
+    
     if amount <= 0:
         return redirect(url_for('dash_bp.dashboard', msg="Amount must be greater than zero!"))
 
@@ -65,8 +65,8 @@ def p2p_transfer():
             conn.commit()
             msg = f"Successfully transferred ${amount} to {recipient_uid}!"
     except Exception as e:
-        conn.rollback()
-        msg = f"Transfer error: {str(e)}"
+      conn.rollback()
+      msg = f"Transfer error: {str(e)}"
     finally:
         cur.close()
         conn.close()
@@ -84,7 +84,8 @@ def deposit():
     conn = get_db()
     cur = conn.cursor()
     try:
-        cur.execute("INSERT INTO deposits (uid, method, amount, address, status) VALUES (%s, %s, %s, %s, 'Pending')", (uid, method, amount, address))
+        cur.execute("INSERT INTO deposits (uid, method, amount, address, status) VALUES (%s, %s, %s, %s, 'Pending')", 
+                    (uid, method, amount, address))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -109,7 +110,8 @@ def withdraw():
         user = cur.fetchone()
         if user and float(user['profit_wallet']) >= amount:
             cur.execute("UPDATE users SET profit_wallet = profit_wallet - %s WHERE uid = %s", (amount, uid))
-            cur.execute("INSERT INTO withdrawals (uid, method, amount, address, status) VALUES (%s, %s, %s, %s, 'Pending')", (uid, method, amount, address))
+            cur.execute("INSERT INTO withdrawals (uid, method, amount, address, status) VALUES (%s, %s, %s, %s, 'Pending')", 
+                        (uid, method, amount, address))
             conn.commit()
             msg = "Withdrawal request submitted successfully!"
         else:

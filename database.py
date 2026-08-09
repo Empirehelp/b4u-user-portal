@@ -14,11 +14,13 @@ def init_db():
     cur = conn.cursor()
     try:
         # Users Table
-        cur.execute("""CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            uid VARCHAR(50) UNIQUE NOT NULL
-        );""")
-
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                uid VARCHAR(50) UNIQUE NOT NULL
+            );
+        """)
+        
         user_columns = [
             ("name", "VARCHAR(100)"),
             ("email", "VARCHAR(100)"),
@@ -32,15 +34,18 @@ def init_db():
             ("wheel_bonus", "NUMERIC(12, 2) DEFAULT 0.00"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
         ]
+        
         for col_name, col_type in user_columns:
             cur.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
 
         # Deposits Table
-        cur.execute("""CREATE TABLE IF NOT EXISTS deposits (
-            id SERIAL PRIMARY KEY,
-            uid VARCHAR(50) NOT NULL
-        );""")
-
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS deposits (
+                id SERIAL PRIMARY KEY,
+                uid VARCHAR(50) NOT NULL
+            );
+        """)
+        
         deposit_columns = [
             ("method", "VARCHAR(50)"),
             ("amount", "NUMERIC(12, 2)"),
@@ -48,15 +53,18 @@ def init_db():
             ("status", "VARCHAR(20) DEFAULT 'Pending'"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
         ]
+        
         for col_name, col_type in deposit_columns:
             cur.execute(f"ALTER TABLE deposits ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
 
         # Withdrawals Table
-        cur.execute("""CREATE TABLE IF NOT EXISTS withdrawals (
-            id SERIAL PRIMARY KEY,
-            uid VARCHAR(50) NOT NULL
-        );""")
-
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS withdrawals (
+                id SERIAL PRIMARY KEY,
+                uid VARCHAR(50) NOT NULL
+            );
+        """)
+        
         withdrawal_columns = [
             ("method", "VARCHAR(50)"),
             ("amount", "NUMERIC(12, 2)"),
@@ -64,6 +72,7 @@ def init_db():
             ("status", "VARCHAR(20) DEFAULT 'Pending'"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
         ]
+        
         for col_name, col_type in withdrawal_columns:
             cur.execute(f"ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
 

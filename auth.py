@@ -97,10 +97,8 @@ def spin_wheel():
         won_amount = random.choice(rewards)
         try:
             cur.execute("""
-                UPDATE users
-                SET profit_wallet = profit_wallet + %s,
-                    wheel_spun = TRUE,
-                    wheel_bonus = %s
+                UPDATE users 
+                SET profit_wallet = profit_wallet + %s, wheel_spun = TRUE, wheel_bonus = %s 
                 WHERE uid = %s
             """, (won_amount, won_amount, uid))
             conn.commit()
@@ -110,10 +108,11 @@ def spin_wheel():
         except Exception as e:
             conn.rollback()
             msg = f"Error: {str(e)}"
-    
     cur.close()
     conn.close()
-    return """<!DOCTYPE html><html><head><title>Lucky Wheel Bonus - B4U EMPIRE</title><style>body { background: #0f0518; color: #fff; font-family: sans-serif; text-align: center; padding-top: 100px; }.card { background: rgba(35, 13, 56, 0.9); border: 1px solid #4a256d; display: inline-block; padding: 40px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); width: 380px; }h2 { color: #fdb913; }.btn { background: #fdb913; color: #130620; border: none; padding: 15px 30px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 20px; width: 100%; }.btn:hover { background: #e0a30f; }</style></head><body><div class="card"><h2>🎁 Signup Lucky Wheel</h2><p>Spin the wheel to win instant bonus cash directly into your profit wallet!</p><form method="POST"><button type="submit" class="btn">SPIN NOW</button></form></div></body></html>"""
+    
+    WHEEL_HTML = """<!DOCTYPE html><html><head><title>Lucky Wheel Bonus - B4U EMPIRE</title><style>body { background: #0f0518; color: #fff; font-family: sans-serif; text-align: center; padding-top: 100px; }.card { background: rgba(35, 13, 56, 0.9); border: 1px solid #4a256d; display: inline-block; padding: 40px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); width: 380px; }h2 { color: #fdb913; }.btn { background: #fdb913; color: #130620; border: none; padding: 15px 30px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 20px; width: 100%; }.btn:hover { background: #e0a30f; }</style></head><body><div class="card"><h2>🎁 Signup Lucky Wheel</h2><p>Spin the wheel to win instant bonus cash directly into your profit wallet!</p><form method="POST"><button type="submit" class="btn">SPIN NOW</button></form></div></body></html>"""
+    return render_template_string(WHEEL_HTML)
 
 @auth_bp.route('/logout')
 def logout():
