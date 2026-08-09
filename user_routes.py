@@ -188,7 +188,7 @@ def user_p2p_transfer():
             SET p2p_wallet = round(p2p_wallet + %s, 2) 
             WHERE uid = %s
         """, (amount, recipient_uid))
-            INSERT INTO p2p_transfers (sender, recipient, amount, created_at) 
+INSERT INTO p2p_transfers (sender, recipient, amount, created_at) 
             VALUES (%s, %s, %s, %s)
         """, (sender_uid, recipient_uid, amount, datetime.utcnow().strftime("%Y-%m-%d %H:%M")))
         conn.commit()
