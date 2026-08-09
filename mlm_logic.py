@@ -1,82 +1,48 @@
 import requests
-import re
+import random
 
-def get_coin_price(coin_id="bitcoin"):
-    try:
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd"
-        response = requests.get(url, timeout=3)
-        data = response.json()
-        return data.get(coin_id, {}).get('usd', 0.0)
-    except Exception:
-        return 0.0
-
-def generate_next_uid(conn):
-    """Generates the next unique user ID based on the last registered user."""
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT uid FROM users ORDER BY id DESC LIMIT 1")
-        last_user = cur.fetchone()
-        
-        if last_user and last_user.get('uid'):
-            last_uid = str(last_user['uid'])
-            match = re.search(r'\d+', last_uid)
-            if match:
-                num = int(match.group()) + 1
-                prefix = last_uid[:match.start()]
-                return f"{prefix}{num}"
-        
-        return "B4U1001"
-    except Exception as e:
-        print(f"Error generating UID: {e}")
-        return "B4U1001"
-    finally:
-        cur.close()
+def generate_next_uid():
+    return f"B4U{random.randint(1000, 9999)}"
 
 def calculate_team_investment(cur, user_uid):
-    """Calculates total team investment across the downline tree."""
-    try:
-        tree = get_downline_tree(cur, user_uid)
-        total = 0.0
-        for level, users in tree.items():
-            for u in users:
-                inv = u.get('inv') or 0.0
-                try:
-                    total += float(inv)
-                except ValueError:
-                    pass
-        return total
-    except Exception:
-        return 0.0
+    cur.execute("SELECT uid FROM users WHERE referrer = %s", (user_uid,))
+    downline = cur.fetchall()
+    total_volume = 0.0
+    for row in downline:
+        child_uid = row['uid']
+        cur.execute("SELECT inv FROM users WHERE uid = %s", (child_uid,))
+        child = cur.fetchone()
+        if child:
+            total_volume += float(child['inv'] or 0.0)
+        total_volume += calculate_team_investment(cur, child_uid)
+    return total_volume
 
-def get_downline_tree(cur, user_uid):
-    tree = {1: [], 2: [], 3: [], 4: [], 5: []}
-
-    cur.execute("SELECT uid, name, email, inv, rank, status, created_at FROM users WHERE sponsor_uid = %s", (user_uid,))
-    l1 = cur.fetchall()
-    tree[1] = l1
-
-    l1_uids = [u['uid'] for u in l1]
-    if l1_uids:
-        cur.execute("SELECT uid, name, email, inv, rank, status, created_at FROM users WHERE sponsor_uid = ANY(%s)", (l1_uids,))
-        l2 = cur.fetchall()
-        tree[2] = l2
-
-        l2_uids = [u['uid'] for u in l2]
-        if l2_uids:
-            cur.execute("SELECT uid, name, email, inv, rank, status, created_at FROM users WHERE sponsor_uid = ANY(%s)", (l2_uids,))
-            l3 = cur.fetchall()
-            tree[3] = l3
-
-            l3_uids = [u['uid'] for u in l3]
-            if l3_uids:
-                cur.execute("SELECT uid, name, email, inv, rank, status, created_at FROM users WHERE sponsor_uid = ANY(%s)", (l3_uids,))
-                l4 = cur.fetchall()
-                tree[4] = l4
-
-                l4_uids = [u['uid'] for u in l4]
-                if l4_uids:
-                    cur.execute("SELECT uid, name, email, inv, rank, status, created_at FROM users WHERE sponsor_uid = ANY(%s)", (l4_uids,))
-                    l5 = cur.fetchall()
-                    tree[5] = l5
-
+def get_downline_tree(cur, user_uid, level=1):
+    tree = []
+    cur.execute("SELECT uid, name, rank, inv, status FROM users WHERE referrer = %s", (user_uid,))
+    downline = cur.fetchall()
+    for row in downline:
+        tree.append({
+            "level": level,
+            "uid": row['uid'],
+            "name": row['name'],
+            "rank": row['rank'],
+            "inv": row['inv'],
+            "status": row['status']
+        })
+        tree.extend(get_downline_tree(cur, row['uid'], level + 1))
     return tree
+
+def get_coin_price():
+    try:
+        response = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd", timeout=5)
+        data = response.json()
+        btc_usd = float(data['bitcoin']['usd'])
+    except Exception:
+        btc_usd = 65000.00
+
+    coin_price = 1.25
+    coin_change = 4.5
+    total_inv = 154200.00
+    b4u_in_btc = round(coin_price / btc_usd, 8) if btc_usd > 0 else 0.000019
+    return coin_price, coin_change, total_inv, btc_usd, b4u_in_btc
