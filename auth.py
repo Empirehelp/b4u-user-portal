@@ -23,7 +23,7 @@ LOGIN_HTML = """<!DOCTYPE html>
     <style>
         body { background: #0f0518; color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: rgba(35, 13, 56, 0.8); border: 1px solid rgba(74, 37, 109, 0.8); border-radius: 14px; padding: 35px; width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-        h2 { color: #fdb913; text-align: center; margin-bottom: 25px; }
+        h2 { color: #fdb913; text-align: center; margin-bottom: 25px; font-size: 20px; }
         input { width: 100%; padding: 12px; background: #130620; border: 1px solid #4a256d; border-radius: 8px; color: white; margin-bottom: 15px; box-sizing: border-box; outline: none; }
         input:focus { border-color: #fdb913; }
         .btn { width: 100%; padding: 12px; background: #fdb913; border: none; border-radius: 8px; color: #130620; font-weight: bold; cursor: pointer; font-size: 14px; }
@@ -40,7 +40,7 @@ LOGIN_HTML = """<!DOCTYPE html>
         <div class="msg">{{ msg }}</div>
         {% endif %}
         <form method="POST">
-            <input type="email" name="email" placeholder="Email Address" required>
+            <input type="text" name="username" placeholder="Email or UID (e.g. B4U1001)" required>
             <input type="password" name="password" placeholder="Password" required>
             <button type="submit" class="btn">LOGIN</button>
         </form>
@@ -58,7 +58,7 @@ REGISTER_HTML = """<!DOCTYPE html>
     <style>
         body { background: #0f0518; color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: rgba(35, 13, 56, 0.8); border: 1px solid rgba(74, 37, 109, 0.8); border-radius: 14px; padding: 35px; width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-        h2 { color: #fdb913; text-align: center; margin-bottom: 25px; }
+        h2 { color: #fdb913; text-align: center; margin-bottom: 25px; font-size: 20px; }
         input { width: 100%; padding: 12px; background: #130620; border: 1px solid #4a256d; border-radius: 8px; color: white; margin-bottom: 12px; box-sizing: border-box; outline: none; }
         input:focus { border-color: #fdb913; }
         .btn { width: 100%; padding: 12px; background: #10b981; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; font-size: 14px; }
@@ -91,13 +91,13 @@ REGISTER_HTML = """<!DOCTYPE html>
 def login():
     msg = None
     if request.method == 'POST':
-        email = request.form.get('email')
+        username = request.form.get('username')
         password = request.form.get('password')
         
         conn = get_db()
         cur = conn.cursor()
         try:
-            cur.execute("SELECT * FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT * FROM users WHERE email = %s OR uid = %s", (username, username))
             user = cur.fetchone()
         finally:
             cur.close()
@@ -110,7 +110,7 @@ def login():
                 return redirect('/admin')
             return redirect('/dashboard')
         else:
-            msg = "Invalid email or password!"
+            msg = "Invalid email/UID or password!"
             
     return render_template_string(LOGIN_HTML, msg=msg)
 
