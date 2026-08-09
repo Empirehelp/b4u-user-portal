@@ -10,7 +10,15 @@ def hash_pwd(password):
     return generate_password_hash(password)
 
 def verify_pwd(pwhash, password):
-    return check_password_hash(pwhash, password)
+    if not pwhash:
+        return False
+    # Agar purana password hash format ka nahi hai ya direct match ho jaye
+    if pwhash == password:
+        return True
+    try:
+        return check_password_hash(pwhash, password)
+    except:
+        return False
 
 def generate_uid():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
@@ -40,11 +48,10 @@ LOGIN_HTML = """<!DOCTYPE html>
         <div class="msg">{{ msg }}</div>
         {% endif %}
         <form method="POST">
-            <input type="text" name="username" placeholder="Email or UID (e.g. B4U1000)" required>
+            <input type="text" name="username" placeholder="Email or UID (e.g. B4U1001)" required>
             <input type="password" name="password" placeholder="Password" required>
             <button type="submit" class="btn">LOGIN</button>
         </form>
-        <p style="font-size:11px; color:#10b981; margin-top:10px;">Default Admin: admin@b4u.com / admin123</p>
         <p>Don't have an account? <a href="/register">Register here</a></p>
     </div>
 </body>
@@ -92,7 +99,7 @@ REGISTER_HTML = """<!DOCTYPE html>
 def login():
     msg = None
     if request.method == 'POST':
-        username = request.form.get('username')
+        username = request.form.get('username').strip()
         password = request.form.get('password')
         
         try:
@@ -106,13 +113,11 @@ def login():
             if user and verify_pwd(user['password'], password):
                 session['uid'] = user['uid']
                 session['name'] = user['name']
-                if user['email'] == 'admin@b4u.com' or user['rank'] == 'Admin':
-                    return redirect('/admin')
                 return redirect('/dashboard')
             else:
                 msg = "Invalid email/UID or password!"
         except Exception as e:
-            msg = f"System Error: {str(e)}"
+            msg = f"Login Error: {str(e)}"
             
     return render_template_string(LOGIN_HTML, msg=msg)
 
