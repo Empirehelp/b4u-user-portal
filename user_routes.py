@@ -104,7 +104,7 @@ def spin_wheel():
     (prize,
      uid))
         conn.commit()
-     finally:
+    finally:
         cur.close()
         conn.close()
 
