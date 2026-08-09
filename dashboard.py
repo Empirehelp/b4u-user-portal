@@ -8,7 +8,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>USER DASHBOARD - B4U NETWORK</title>
+    <title>USER DASHBOARD - B4U EMPIRE</title>
     <style>
         body { background: #0f0518; color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 25px; }
         h1 { color: #fdb913; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(253,185,19,0.3); padding-bottom: 15px; margin-top: 0; font-size: 1.5rem; }
@@ -41,11 +41,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="msg-alert">{{ msg }}</div>
     {% endif %}
 
-    <!-- Live Crypto Ticker -->
     <div class="crypto-ticker">
         <div class="crypto-badge">Bitcoin (BTC): ${{ btc_price }}</div>
         <div class="crypto-badge">Ethereum (ETH): ${{ eth_price }}</div>
-        <div class="crypto-badge">B4U Coin: $1.25</div>
+        <div class="crypto-badge">B4U Empire Coin: $1.50</div>
     </div>
 
     <div class="stats-grid">
@@ -61,9 +60,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             <small style="color:#a78bfa; font-weight:bold;">ACCOUNT RANK</small>
             <div class="stat-num" style="color:#60a5fa;">{{ user.rank }}</div>
         </div>
-        <div class="stat-card" style="border-top-color: #ef4444;">
-            <small style="color:#a78bfa; font-weight:bold;">STATUS</small>
-            <div class="stat-num" style="color: {% if user.status == 'Active' %}#10b981{% else %}#ef4444{% endif %};">{{ user.status }}</div>
+        <div class="stat-card" style="border-top-color: #f59e0b;">
+            <small style="color:#a78bfa; font-weight:bold;">WHEEL BONUS</small>
+            <div class="stat-num" style="color:#f59e0b;">${{ "{:,.2f}".format(user.wheel_bonus) }}</div>
         </div>
     </div>
 
@@ -74,17 +73,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <p style="margin-top:10px;">Sponsor UID: <code>{{ user.sponsor_uid }}</code></p>
     </div>
 
-    <!-- P2P Wallet Transfer -->
     <div class="box">
         <h2>🔄 P2P Wallet Transfer</h2>
         <form action="/p2p_transfer" method="POST">
-            <input type="text" name="recipient_uid" placeholder="Recipient UID (e.g. B4U1002)" required>
+            <input type="text" name="recipient_uid" placeholder="Recipient UID (e.g. B4U10002)" required>
             <input type="number" step="0.01" name="amount" placeholder="Transfer Amount ($)" required>
             <button type="submit" class="btn btn-success" style="background:#8b5cf6;">Send P2P Transfer</button>
         </form>
     </div>
 
-    <!-- Level 5 Downline Tree -->
     <div class="box">
         <h2>🌳 Level 1 to Level 5 Downline Tree</h2>
         {% for level, members in tree.items() %}
@@ -123,7 +120,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 <option value="USDT (TRC20)">USDT (TRC20)</option>
                 <option value="Bitcoin">Bitcoin (BTC)</option>
                 <option value="Ethereum">Ethereum (ETH)</option>
-                <option value="B4U Coin">B4U Coin</option>
+                <option value="B4U Empire Coin">B4U Empire Coin</option>
             </select>
             <input type="number" step="0.01" name="amount" placeholder="Enter Deposit Amount ($)" required>
             <input type="text" name="address" placeholder="Transaction Hash / Reference ID" required>
@@ -160,8 +157,6 @@ def dashboard():
     try:
         cur.execute("SELECT * FROM users WHERE uid = %s", (uid,))
         user = cur.fetchone()
-        
-        # Fetch downline tree
         tree = get_downline_tree(cur, uid)
     finally:
         cur.close()
@@ -193,11 +188,9 @@ def p2p_transfer():
     conn = get_db()
     cur = conn.cursor()
     try:
-        # Check sender balance
         cur.execute("SELECT profit_wallet FROM users WHERE uid = %s", (sender_uid,))
         sender = cur.fetchone()
         
-        # Check recipient existence
         cur.execute("SELECT uid FROM users WHERE uid = %s", (recipient_uid,))
         recipient = cur.fetchone()
         
@@ -208,7 +201,6 @@ def p2p_transfer():
         elif float(sender['profit_wallet']) < amount:
             msg = "Insufficient balance in Profit Wallet!"
         else:
-            # Execute transfer
             cur.execute("UPDATE users SET profit_wallet = profit_wallet - %s WHERE uid = %s", (amount, sender_uid))
             cur.execute("UPDATE users SET profit_wallet = profit_wallet + %s WHERE uid = %s", (amount, recipient_uid))
             conn.commit()

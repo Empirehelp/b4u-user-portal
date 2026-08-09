@@ -12,7 +12,6 @@ def hash_pwd(password):
 def verify_pwd(pwhash, password):
     if not pwhash:
         return False
-    # Agar purana password hash format ka nahi hai ya direct match ho jaye
     if pwhash == password:
         return True
     try:
@@ -21,13 +20,13 @@ def verify_pwd(pwhash, password):
         return False
 
 def generate_uid():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    return 'B4U' + ''.join(random.choices(string.digits, k=5))
 
 LOGIN_HTML = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>LOGIN - B4U NETWORK</title>
+    <title>LOGIN - B4U EMPIRE</title>
     <style>
         body { background: #0f0518; color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: rgba(35, 13, 56, 0.8); border: 1px solid rgba(74, 37, 109, 0.8); border-radius: 14px; padding: 35px; width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
@@ -43,12 +42,12 @@ LOGIN_HTML = """<!DOCTYPE html>
 </head>
 <body>
     <div class="card">
-        <h2>B4U NETWORK LOGIN</h2>
+        <h2>B4U EMPIRE LOGIN</h2>
         {% if msg %}
         <div class="msg">{{ msg }}</div>
         {% endif %}
         <form method="POST">
-            <input type="text" name="username" placeholder="Email or UID (e.g. B4U1001)" required>
+            <input type="text" name="username" placeholder="Email or UID (e.g. B4U10001)" required>
             <input type="password" name="password" placeholder="Password" required>
             <button type="submit" class="btn">LOGIN</button>
         </form>
@@ -62,7 +61,7 @@ REGISTER_HTML = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>REGISTER - B4U NETWORK</title>
+    <title>REGISTER - B4U EMPIRE</title>
     <style>
         body { background: #0f0518; color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: rgba(35, 13, 56, 0.8); border: 1px solid rgba(74, 37, 109, 0.8); border-radius: 14px; padding: 35px; width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
@@ -135,16 +134,87 @@ def register():
         try:
             conn = get_db()
             cur = conn.cursor()
-            cur.execute("INSERT INTO users (uid, name, email, password, sponsor_uid) VALUES (%s, %s, %s, %s, %s)",
-                        (uid, name, email, password, sponsor_uid))
+            cur.execute("""
+                INSERT INTO users (uid, name, email, password, sponsor_uid, wheel_spun) 
+                VALUES (%s, %s, %s, %s, %s, FALSE)
+            """, (uid, name, email, password, sponsor_uid))
             conn.commit()
             cur.close()
             conn.close()
-            return redirect('/login')
+            
+            session['uid'] = uid
+            session['name'] = name
+            return redirect('/spin_wheel')
         except Exception as e:
             msg = f"Registration error: {str(e)}"
             
     return render_template_string(REGISTER_HTML, msg=msg, sponsor_ref=sponsor_ref)
+
+@auth_bp.route('/spin_wheel', methods=['GET', 'POST'])
+def spin_wheel():
+    if 'uid' not in session:
+        return redirect('/login')
+    
+    uid = session['uid']
+    conn = get_db()
+    cur = conn.cursor()
+    
+    cur.execute("SELECT wheel_spun FROM users WHERE uid = %s", (uid,))
+    user = cur.fetchone()
+    
+    if user and user['wheel_spun']:
+        cur.close()
+        conn.close()
+        return redirect('/dashboard?msg=You have already claimed your signup wheel bonus!')
+        
+    msg = None
+    if request.method == 'POST':
+        rewards = [1.00, 5.00, 10.00, 25.00, 50.00]
+        won_amount = random.choice(rewards)
+        
+        try:
+            cur.execute("""
+                UPDATE users 
+                SET profit_wallet = profit_wallet + %s, 
+                    wheel_spun = TRUE, 
+                    wheel_bonus = %s 
+                WHERE uid = %s
+            """, (won_amount, won_amount, uid))
+            conn.commit()
+            cur.close()
+            conn.close()
+            return redirect(f'/dashboard?msg=Congratulations! You won ${won_amount} from the Signup Wheel Bonus!')
+        except Exception as e:
+            conn.rollback()
+            msg = f"Error: {str(e)}"
+            
+    cur.close()
+    conn.close()
+    
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Lucky Wheel Bonus - B4U EMPIRE</title>
+        <style>
+            body { background: #0f0518; color: #fff; font-family: sans-serif; text-align: center; padding-top: 100px; }
+            .card { background: rgba(35, 13, 56, 0.9); border: 1px solid #4a256d; display: inline-block; padding: 40px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); width: 380px; }
+            h2 { color: #fdb913; }
+            .btn { background: #fdb913; color: #130620; border: none; padding: 15px 30px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 20px; width: 100%; }
+            .btn:hover { background: #e0a30f; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>🎁 Signup Lucky Wheel</h2>
+            <p>Spin the wheel to win instant bonus cash directly into your profit wallet!</p>
+            <form method="POST">
+                <button type="submit" class="btn">SPIN NOW</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """
 
 @auth_bp.route('/logout')
 def logout():
