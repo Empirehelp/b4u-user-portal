@@ -186,7 +186,6 @@ def user_p2p_transfer():
         sender = cur.fetchone()
         cur.execute("SELECT uid FROM users WHERE uid = %s", (recipient_uid,))
         recipient = cur.fetchone()
-        
         if not recipient:
             session['flash_msg'] = f"Recipient Node {recipient_uid} not found!"
             session['flash_type'] = "error"
@@ -202,11 +201,13 @@ def user_p2p_transfer():
             UPDATE users 
             SET p2p_wallet = round(p2p_wallet + %s, 2) 
             WHERE uid = %s
- cursor.execute("""
-    INSERT INTO p2p_transfers (sender, recipient, amount, created_at) 
-    VALUES (%s, %s, %s, %s)
-""", (sender, recipient, amount, created_at))
+        """, (amount, recipient_uid))
+        
+        cur.execute("""
+            INSERT INTO p2p_transfers (sender, recipient, amount, created_at) 
+            VALUES (%s, %s, %s, %s)
         """, (sender_uid, recipient_uid, amount, datetime.utcnow().strftime("%Y-%m-%d %H:%M")))
+        
         conn.commit()
     finally:
         cur.close()
@@ -272,3 +273,4 @@ def user_withdraw():
         cur.close()
         conn.close()
     return redirect(url_for('user_bp.user_dashboard'))
+        
