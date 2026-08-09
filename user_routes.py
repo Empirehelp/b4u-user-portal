@@ -88,8 +88,7 @@ def spin_wheel():
         
         cur.execute("UPDATE users SET inv = round(inv + %s, 2), wheel_spun = TRUE WHERE uid = %s", (prize, uid))
         conn.commit()
-        return jsonify({"success": True, "prize": prize})
-    finally:
+     finally:
         cur.close()
         conn.close()
 
