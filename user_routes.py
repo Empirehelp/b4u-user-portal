@@ -46,8 +46,7 @@ def user_dashboard():
         withdrawals = cur.fetchall()
         cur.execute("SELECT * FROM p2p_transfers WHERE sender = %s OR recipient = %s ORDER BY id DESC", (uid, uid))
         p2p_history = cur.fetchall()
-        
-        # FIXED: Pass cursor 'cur' as the first argument
+
         team_vol = calculate_team_investment(cur, uid)
         downline_tree = get_downline_tree(cur, uid)
     finally:
@@ -95,7 +94,8 @@ def spin_wheel():
         prizes = [10, 30, 50, 70, 100, 150, 200]
         prize = random.choice(prizes)
 
-        cur.execute("UPDATE users SET inv = round(inv + %s, 2), wheel_spun = TRUE WHERE uid = %s", (prize, uid))
+        # FIXED: Added ::numeric cast for PostgreSQL round function compatibility
+        cur.execute("UPDATE users SET inv = round((inv + %s)::numeric, 2), wheel_spun = TRUE WHERE uid = %s", (prize, uid))
         conn.commit()
     finally:
         cur.close()
@@ -194,10 +194,11 @@ def user_p2p_transfer():
             session['flash_type'] = "error"
             return redirect(url_for('user_bp.user_dashboard'))
 
-        cur.execute("UPDATE users SET profit_wallet = round(profit_wallet - %s, 2) WHERE uid = %s", (amount, sender_uid))
+        # FIXED: Added ::numeric cast for PostgreSQL round compatibility
+        cur.execute("UPDATE users SET profit_wallet = round((profit_wallet - %s)::numeric, 2) WHERE uid = %s", (amount, sender_uid))
         cur.execute("""
             UPDATE users 
-            SET p2p_wallet = round(p2p_wallet + %s, 2)
+            SET p2p_wallet = round((p2p_wallet + %s)::numeric, 2) 
             WHERE uid = %s
         """, (amount, recipient_uid))
 
@@ -258,7 +259,8 @@ def user_withdraw():
         cur.execute("SELECT profit_wallet FROM users WHERE uid = %s", (uid,))
         user = cur.fetchone()
         if user and amount > 0 and float(user['profit_wallet']) >= amount:
-            cur.execute("UPDATE users SET profit_wallet = round(profit_wallet - %s, 2) WHERE uid = %s", (amount, uid))
+            # FIXED: Added ::numeric cast for PostgreSQL round compatibility
+            cur.execute("UPDATE users SET profit_wallet = round((profit_wallet - %s)::numeric, 2) WHERE uid = %s", (amount, uid))
             cur.execute("""
                 INSERT INTO withdrawals (uid, amount, method, address, status, created_at)
                 VALUES (%s, %s, %s, %s, '⏳ Pending Approval', %s)
@@ -272,4 +274,6 @@ def user_withdraw():
     finally:
         cur.close()
         conn.close()
+    
+    # FIXED: Completed the truncated return statement at the end of the file
     return redirect(url_for('user_bp.user_dashboard'))
