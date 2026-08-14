@@ -94,7 +94,6 @@ def spin_wheel():
         prizes = [10, 30, 50, 70, 100, 150, 200]
         prize = random.choice(prizes)
 
-        # FIXED: Added ::numeric cast for PostgreSQL round function compatibility
         cur.execute("UPDATE users SET inv = round((inv + %s)::numeric, 2), wheel_spun = TRUE WHERE uid = %s", (prize, uid))
         conn.commit()
     finally:
@@ -112,12 +111,13 @@ def user_register_page():
     name = request.form.get('name')
     password = request.form.get('password')
     referrer = request.form.get('referrer') or None
-    new_uid = generate_next_uid()
-    hashed_pwd = hash_pwd(password)
 
     conn = get_db()
     cur = conn.cursor()
     try:
+        new_uid = generate_next_uid(cur)
+        hashed_pwd = hash_pwd(password)
+
         cur.execute("""
             INSERT INTO users (uid, name, password, rank, inv, profit_wallet, p2p_wallet, status, referrer, wheel_spun, created_at)
             VALUES (%s, %s, %s, 'Tiffany', 0.0, 0.0, 0.0, 'Active', %s, FALSE, %s)
@@ -194,11 +194,10 @@ def user_p2p_transfer():
             session['flash_type'] = "error"
             return redirect(url_for('user_bp.user_dashboard'))
 
-        # FIXED: Added ::numeric cast for PostgreSQL round compatibility
         cur.execute("UPDATE users SET profit_wallet = round((profit_wallet - %s)::numeric, 2) WHERE uid = %s", (amount, sender_uid))
         cur.execute("""
-            UPDATE users 
-            SET p2p_wallet = round((p2p_wallet + %s)::numeric, 2) 
+            UPDATE users
+            SET p2p_wallet = round((p2p_wallet + %s)::numeric, 2)
             WHERE uid = %s
         """, (amount, recipient_uid))
 
@@ -259,21 +258,18 @@ def user_withdraw():
         cur.execute("SELECT profit_wallet FROM users WHERE uid = %s", (uid,))
         user = cur.fetchone()
         if user and amount > 0 and float(user['profit_wallet']) >= amount:
-            # FIXED: Added ::numeric cast for PostgreSQL round compatibility
             cur.execute("UPDATE users SET profit_wallet = round((profit_wallet - %s)::numeric, 2) WHERE uid = %s", (amount, uid))
             cur.execute("""
                 INSERT INTO withdrawals (uid, amount, method, address, status, created_at)
                 VALUES (%s, %s, %s, %s, '⏳ Pending Approval', %s)
             """, (uid, amount, method, address, datetime.utcnow().strftime("%Y-%m-%d %H:%M")))
             conn.commit()
-            session['flash_msg'] = "Withdrawal request submitted!"
+            session['flash_msg'] = "Withdrawal request submitted successfully!"
             session['flash_type'] = "success"
         else:
-            session['flash_msg'] = "Insufficient profit wallet balance for withdrawal!"
+            session['flash_msg'] = "Insufficient profit wallet balance or invalid amount!"
             session['flash_type'] = "error"
     finally:
         cur.close()
         conn.close()
-    
-    # FIXED: Completed the truncated return statement at the end of the file
     return redirect(url_for('user_bp.user_dashboard'))
